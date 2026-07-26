@@ -10,9 +10,9 @@
     {"symbol": "ADA",    "amount": 750,    "id": "cardano"},
     {"symbol": "AVAX",   "amount": 50,     "id": "avalanche-2"},
     {"symbol": "SOL",    "amount": 5,      "id": "solana"},
-    {"symbol": "KARRAT", "amount": 100000, "id": null, "note": "auto-resolve"},
-    {"symbol": "BLACK",  "amount": 100000, "id": null, "note": "Blackhole - preveri, da je izbran pravi BLACK token"},
-    {"symbol": "JITO",   "amount": 5,      "id": null, "note": "DVOUMNO: JTO (governance) ali JitoSOL (staked SOL)? Preveri in vpisi tocen id."},
+    {"symbol": "KARRAT", "amount": 100000, "id": null, "note": "karrat"},
+    {"symbol": "BLACK",  "amount": 100000, "id": null, "note": "Blackhole"},
+    {"symbol": "JITO",   "amount": 5,      "id": null, "note": "jito-governance-token"},
     {"symbol": "PUMP",   "amount": 200,    "id": null, "note": "pump.fun"}
   ]
 }
