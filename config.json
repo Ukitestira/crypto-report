@@ -1,0 +1,18 @@
+{
+  "vs_currency": "usd",
+  "report_title": "Jutranje crypto poročilo",
+  "onchain_threshold_usd": 250000,
+  "_comment": "Za dodajanje coina: prilepi novo vrstico v 'holdings'. 'id' je CoinGecko API ID (najdes ga na coin strani, labela 'API ID'). Ce 'id' nastavis na null, ga skripta poisce sama in ti v emailu javi, katerega je izbrala.",
+  "holdings": [
+    {"symbol": "USDC",   "amount": 5000,   "id": "usd-coin"},
+    {"symbol": "BTC",    "amount": 0.05,   "id": "bitcoin"},
+    {"symbol": "ETH",    "amount": 0.5,    "id": "ethereum"},
+    {"symbol": "ADA",    "amount": 750,    "id": "cardano"},
+    {"symbol": "AVAX",   "amount": 50,     "id": "avalanche-2"},
+    {"symbol": "SOL",    "amount": 5,      "id": "solana"},
+    {"symbol": "KARRAT", "amount": 100000, "id": null, "note": "auto-resolve"},
+    {"symbol": "BLACK",  "amount": 100000, "id": null, "note": "Blackhole - preveri, da je izbran pravi BLACK token"},
+    {"symbol": "JITO",   "amount": 5,      "id": null, "note": "DVOUMNO: JTO (governance) ali JitoSOL (staked SOL)? Preveri in vpisi tocen id."},
+    {"symbol": "PUMP",   "amount": 200,    "id": null, "note": "pump.fun"}
+  ]
+}

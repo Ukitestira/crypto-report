@@ -1,0 +1,11 @@
+{
+  "_comment": "ZACETNI seznam znanih borznih naslovov. OBVEZNO preveri vsak naslov na explorerju (labela borze) preden mu zaupas - naslovi se lahko spremenijo/prerazporedijo. Dodajanje: prilepi vrstico {chain, exchange, address}. chain je eden od: btc, eth, sol.",
+  "_threshold_usd_note": "V config.json lahko nastavis onchain_threshold_usd (privzeto 250000) za oznacevanje vecjih posameznih premikov.",
+  "addresses": [
+    {"chain": "eth", "exchange": "Binance 14",   "address": "0x28C6c06298d514Db089934071355E5743bf21d60", "verify": true},
+    {"chain": "eth", "exchange": "Binance 15",   "address": "0x21a31Ee1afC51d94C2eFcCAa2092aD1028285549", "verify": true},
+    {"chain": "eth", "exchange": "Kraken 4",     "address": "0x2910543Af39abA0Cd09dBb2D50200b3E800A63D2", "verify": true},
+    {"chain": "btc", "exchange": "Binance cold", "address": "34xp4vRoCGJym3xR7yCVPFHoCNxv4Twseo",         "verify": true},
+    {"chain": "sol", "exchange": "Binance hot",  "address": "5tzFkiKscXHK5ZXCGbXZxdw7gTjjD1mBwuoFbhUvuAi9", "verify": true}
+  ]
+}
