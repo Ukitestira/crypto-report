@@ -1,0 +1,46 @@
+name: Jutranje crypto porocilo
+
+on:
+  schedule:
+    # Cas je v UTC! 06:00 UTC = ~07:00 (zima) / ~08:00 (poletje) po slovenskem casu.
+    # Spremeni po zelji. Format: minuta ura * * *
+    - cron: "0 6 * * *"
+  workflow_dispatch: {}   # omogoca rocni zagon iz zavihka Actions
+
+permissions:
+  contents: write          # potrebno za commit stanja (state/onchain_snapshot.json)
+
+jobs:
+  report:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Poslji porocilo
+        env:
+          EMAIL_USER: ${{ secrets.EMAIL_USER }}
+          EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
+          EMAIL_TO: ${{ secrets.EMAIL_TO }}
+          COINGECKO_API_KEY: ${{ secrets.COINGECKO_API_KEY }}
+          # Opcijsko za onchain (za vecjo zanesljivost):
+          ETHERSCAN_API_KEY: ${{ secrets.ETHERSCAN_API_KEY }}
+          SOLANA_RPC_URL: ${{ secrets.SOLANA_RPC_URL }}
+        run: python crypto_report.py
+
+      - name: Shrani stanje (onchain saldi)
+        run: |
+          if [ -n "$(git status --porcelain state/)" ]; then
+            git config user.name "crypto-report-bot"
+            git config user.email "actions@users.noreply.github.com"
+            git add state/
+            git commit -m "Posodobitev onchain stanja [skip ci]"
+            git push
+          else
+            echo "Ni sprememb stanja."
+          fi
