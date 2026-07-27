@@ -309,11 +309,11 @@ def render_html(cfg, rows, missing, total, port_ch24, glob, fng, auto_resolved, 
             "<ul style='margin:6px 0 0'>{}</ul></div>"
         ).format(items)
 
-  ai_html = ""
+    ai_html = ""
     if ai_briefing:
         ai_html = (
             "<div style='margin-top:16px;padding:12px 16px;background:#fff7e6;border-radius:8px;font-size:14px;color:#4a3800;white-space:pre-line'>"
-            "<b>🤖 AI Povzetek:</b><br>{}</div>"
+            "<b>\U0001F916 AI Povzetek:</b><br>{}</div>"
         ).format(ai_briefing.replace("\n", "<br>"))
 
     port_color = pct_color(port_ch24)
@@ -376,7 +376,7 @@ def render_text(cfg, rows, total, port_ch24, onchain_text="", ai_briefing=None):
         lines.append("{:<8} {:>14}  24h {:>8}  7d {:>8}  = {}".format(
             r["symbol"], fmt_money(r["price"]), fmt_pct(r["ch24"]),
             fmt_pct(r["ch7d"]), fmt_money(r["value"])))
-if ai_briefing:
+    if ai_briefing:
         lines.append("")
         lines.append("AI POVZETEK:")
         lines.append(ai_briefing)
@@ -444,7 +444,7 @@ def main():
         except Exception as e:
             print("  ! onchain razdelek ni uspel:", e)
 
-      # --- AI povzetek (opcijsko) ---
+    # --- AI povzetek (opcijsko) ---
     ai_briefing = None
     if generate_ai_briefing is not None:
         print("Generiram AI povzetek...")
@@ -452,7 +452,7 @@ def main():
             ai_briefing = generate_ai_briefing(rows, total, port_ch24, glob, fng, onchain_text)
         except Exception as e:
             print("  ! AI povzetek ni uspel:", e)
-          
+
     html = render_html(cfg, rows, missing, total, port_ch24, glob, fng, auto_resolved, onchain_html, ai_briefing)
     text = render_text(cfg, rows, total, port_ch24, onchain_text, ai_briefing)
 
