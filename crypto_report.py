@@ -39,9 +39,11 @@ except Exception:
 # Opcijski AI modul (povzetek/priporocila). Ce ga ni ali ni API kljuca, porocilo tece brez njega.
 try:
     from ai_synthesis import generate_ai_briefing
-except Exception:
-    print("  ! ai_synthesis uvoz ni uspel:", e)
+except Exception as e:
+    print("  ! ai_synthesis uvoz ni uspel:", repr(e))
     generate_ai_briefing = None
+
+print("  DEBUG: generate_ai_briefing =", generate_ai_briefing)
 
 # --- okoljske spremenljivke ---
 EMAIL_USER = os.environ.get("EMAIL_USER", "")
