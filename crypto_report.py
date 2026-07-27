@@ -40,6 +40,7 @@ except Exception:
 try:
     from ai_synthesis import generate_ai_briefing
 except Exception:
+    print("  ! ai_synthesis uvoz ni uspel:", e)
     generate_ai_briefing = None
 
 # --- okoljske spremenljivke ---
