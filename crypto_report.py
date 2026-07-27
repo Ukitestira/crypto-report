@@ -36,6 +36,12 @@ try:
 except Exception:
     build_onchain_section = None
 
+# Opcijski AI modul (povzetek/priporocila). Ce ga ni ali ni API kljuca, porocilo tece brez njega.
+try:
+    from ai_synthesis import generate_ai_briefing
+except Exception:
+    generate_ai_briefing = None
+
 # --- okoljske spremenljivke ---
 EMAIL_USER = os.environ.get("EMAIL_USER", "")
 EMAIL_APP_PASSWORD = os.environ.get("EMAIL_APP_PASSWORD", "")
@@ -240,7 +246,7 @@ def agent_note(rows, fng, port_ch24):
     return " ".join(notes)
 
 
-def render_html(cfg, rows, missing, total, port_ch24, glob, fng, auto_resolved, onchain_html=""):
+def render_html(cfg, rows, missing, total, port_ch24, glob, fng, auto_resolved, onchain_html="", ai_briefing=None):
     vs = cfg.get("vs_currency", "usd").upper()
     now = datetime.now(timezone.utc).strftime("%d.%m.%Y")
 
@@ -300,6 +306,13 @@ def render_html(cfg, rows, missing, total, port_ch24, glob, fng, auto_resolved, 
             "<ul style='margin:6px 0 0'>{}</ul></div>"
         ).format(items)
 
+  ai_html = ""
+    if ai_briefing:
+        ai_html = (
+            "<div style='margin-top:16px;padding:12px 16px;background:#fff7e6;border-radius:8px;font-size:14px;color:#4a3800;white-space:pre-line'>"
+            "<b>🤖 AI Povzetek:</b><br>{}</div>"
+        ).format(ai_briefing.replace("\n", "<br>"))
+
     port_color = pct_color(port_ch24)
 
     return """<!DOCTYPE html>
@@ -333,6 +346,7 @@ def render_html(cfg, rows, missing, total, port_ch24, glob, fng, auto_resolved, 
     <b>Opazanje:</b> {note}
   </div>
   {missing}{resolved}
+  {ai_briefing}
   {onchain}
 
   <p style="margin-top:20px;color:#aaa;font-size:12px;line-height:1.5">
@@ -346,10 +360,11 @@ def render_html(cfg, rows, missing, total, port_ch24, glob, fng, auto_resolved, 
         note=agent_note(rows, fng, port_ch24),
         missing=miss_html, resolved=resolved_html,
         onchain=onchain_html or "",
+        ai_briefing=ai_html,
     )
 
 
-def render_text(cfg, rows, total, port_ch24, onchain_text=""):
+def render_text(cfg, rows, total, port_ch24, onchain_text="", ai_briefing=None):
     lines = [cfg.get("report_title", "Crypto porocilo"),
              datetime.now(timezone.utc).strftime("%d.%m.%Y"), ""]
     lines.append("Vrednost portfelja: {}  ({} cez noc)".format(fmt_money(total), fmt_pct(port_ch24)))
@@ -358,6 +373,10 @@ def render_text(cfg, rows, total, port_ch24, onchain_text=""):
         lines.append("{:<8} {:>14}  24h {:>8}  7d {:>8}  = {}".format(
             r["symbol"], fmt_money(r["price"]), fmt_pct(r["ch24"]),
             fmt_pct(r["ch7d"]), fmt_money(r["value"])))
+if ai_briefing:
+        lines.append("")
+        lines.append("AI POVZETEK:")
+        lines.append(ai_briefing)
     if onchain_text:
         lines.append("")
         lines.append(onchain_text)
@@ -422,8 +441,17 @@ def main():
         except Exception as e:
             print("  ! onchain razdelek ni uspel:", e)
 
-    html = render_html(cfg, rows, missing, total, port_ch24, glob, fng, auto_resolved, onchain_html)
-    text = render_text(cfg, rows, total, port_ch24, onchain_text)
+      # --- AI povzetek (opcijsko) ---
+    ai_briefing = None
+    if generate_ai_briefing is not None:
+        print("Generiram AI povzetek...")
+        try:
+            ai_briefing = generate_ai_briefing(rows, total, port_ch24, glob, fng, onchain_text)
+        except Exception as e:
+            print("  ! AI povzetek ni uspel:", e)
+          
+    html = render_html(cfg, rows, missing, total, port_ch24, glob, fng, auto_resolved, onchain_html, ai_briefing)
+    text = render_text(cfg, rows, total, port_ch24, onchain_text, ai_briefing)
 
     subject = "{} - {} ({})".format(
         cfg.get("report_title", "Crypto porocilo"),
