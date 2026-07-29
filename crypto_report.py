@@ -43,8 +43,6 @@ except Exception as e:
     print("  ! ai_synthesis uvoz ni uspel:", repr(e))
     generate_ai_briefing = None
 
-print("  DEBUG: generate_ai_briefing =", generate_ai_briefing)
-
 # --- okoljske spremenljivke ---
 EMAIL_USER = os.environ.get("EMAIL_USER", "")
 EMAIL_APP_PASSWORD = os.environ.get("EMAIL_APP_PASSWORD", "")
@@ -149,6 +147,8 @@ def build_holdings(cfg):
             "amount": float(h["amount"]),
             "id": cid,
             "note": h.get("note", ""),
+            "avg_buy_price": h.get("avg_buy_price"),
+            "target_price": h.get("target_price"),
         })
     return holdings, auto_resolved
 
@@ -215,13 +215,44 @@ def compute_portfolio(holdings, mmap, vs):
             total_prev += value / (1 + ch24 / 100.0)
         else:
             total_prev += value
+
+        avg_buy_price = h.get("avg_buy_price")
+        pct_since_buy = None
+        if avg_buy_price:
+            pct_since_buy = (price - avg_buy_price) / avg_buy_price * 100.0
+
+        target_price = h.get("target_price")
+        pct_to_target = None
+        if target_price:
+            # pozitivno = se manjka do cilja, negativno = ciljna cena ze presezena
+            pct_to_target = (target_price - price) / price * 100.0
+
         rows.append({
             "symbol": h["symbol"], "amount": h["amount"], "price": price,
             "ch24": ch24, "ch7d": ch7d, "value": value,
+            "avg_buy_price": avg_buy_price, "pct_since_buy": pct_since_buy,
+            "target_price": target_price, "pct_to_target": pct_to_target,
         })
     rows.sort(key=lambda r: r["value"], reverse=True)
     port_ch24 = ((total - total_prev) / total_prev * 100.0) if total_prev > 0 else None
     return rows, missing, total, port_ch24
+
+
+def find_biggest_mover(rows):
+    movers = [r for r in rows if r.get("ch24") is not None]
+    if not movers:
+        return None
+    return max(movers, key=lambda r: abs(r["ch24"]))
+
+
+def find_target_alerts(rows, threshold_pct):
+    alerts = []
+    for r in rows:
+        pct = r.get("pct_to_target")
+        if pct is not None and pct <= threshold_pct:
+            alerts.append(r)
+    alerts.sort(key=lambda r: r["pct_to_target"])
+    return alerts
 
 
 def agent_note(rows, fng, port_ch24):
@@ -249,7 +280,85 @@ def agent_note(rows, fng, port_ch24):
     return " ".join(notes)
 
 
-def render_html(cfg, rows, missing, total, port_ch24, glob, fng, auto_resolved, onchain_html="", ai_briefing=None):
+def render_mover_html(mover):
+    if not mover:
+        return ""
+    lines = [
+        "<div style='font-size:15px;font-weight:700'>{sym} &middot; <span style='color:{c}'>{ch}</span> cez noc</div>".format(
+            sym=mover["symbol"], c=pct_color(mover["ch24"]), ch=fmt_pct(mover["ch24"])
+        )
+    ]
+    if mover.get("pct_to_target") is not None:
+        pct = mover["pct_to_target"]
+        if pct >= 0:
+            lines.append("<div style='margin-top:4px'>Do ciljne cene ({tp}) manjka <b>{pct:.1f}%</b></div>".format(
+                tp=fmt_money(mover["target_price"]), pct=pct))
+        else:
+            lines.append("<div style='margin-top:4px'>Ciljna cena ({tp}) je <b>presezena za {pct:.1f}%</b></div>".format(
+                tp=fmt_money(mover["target_price"]), pct=-pct))
+    if mover.get("pct_since_buy") is not None:
+        lines.append("<div style='margin-top:4px'>Od nakupa ({bp}): <b style='color:{c}'>{pct}</b></div>".format(
+            bp=fmt_money(mover["avg_buy_price"]), c=pct_color(mover["pct_since_buy"]),
+            pct=fmt_pct(mover["pct_since_buy"])))
+    return (
+        "<div style='margin-top:16px;padding:14px 16px;background:#fff0f0;border:1px solid #ffd6d6;"
+        "border-radius:8px;color:#5a1a1a'>"
+        "<div style='font-size:11px;text-transform:uppercase;letter-spacing:.05em;color:#a55;margin-bottom:6px'>"
+        "\u26a1 Najvecji premik danes</div>{}</div>"
+    ).format("".join(lines))
+
+
+def render_alerts_html(alerts):
+    if not alerts:
+        return ""
+    items = []
+    for r in alerts:
+        pct = r["pct_to_target"]
+        if pct >= 0:
+            msg = "manjka {:.1f}% do cilja ({})".format(pct, fmt_money(r["target_price"]))
+        else:
+            msg = "cilj ({}) presezen za {:.1f}%".format(fmt_money(r["target_price"]), -pct)
+        items.append("<li><b>{}</b>: {} &mdash; trenutno {}</li>".format(r["symbol"], msg, fmt_money(r["price"])))
+    return (
+        "<div style='margin-top:16px;padding:12px 16px;background:#fff7e6;border-radius:8px;"
+        "font-size:14px;color:#4a3800'>"
+        "<b>\U0001F514 Target alert</b>"
+        "<ul style='margin:6px 0 0'>{}</ul></div>"
+    ).format("".join(items))
+
+
+def render_mover_text(mover):
+    if not mover:
+        return ""
+    lines = ["NAJVECJI PREMIK: {} ({} cez noc)".format(mover["symbol"], fmt_pct(mover["ch24"]))]
+    if mover.get("pct_to_target") is not None:
+        pct = mover["pct_to_target"]
+        if pct >= 0:
+            lines.append("  do ciljne cene ({}) manjka {:.1f}%".format(fmt_money(mover["target_price"]), pct))
+        else:
+            lines.append("  ciljna cena ({}) presezena za {:.1f}%".format(fmt_money(mover["target_price"]), -pct))
+    if mover.get("pct_since_buy") is not None:
+        lines.append("  od nakupa ({}): {}".format(fmt_money(mover["avg_buy_price"]), fmt_pct(mover["pct_since_buy"])))
+    return "\n".join(lines)
+
+
+def render_alerts_text(alerts):
+    if not alerts:
+        return ""
+    lines = ["TARGET ALERT:"]
+    for r in alerts:
+        pct = r["pct_to_target"]
+        if pct >= 0:
+            lines.append("  {}: manjka {:.1f}% do cilja ({}), trenutno {}".format(
+                r["symbol"], pct, fmt_money(r["target_price"]), fmt_money(r["price"])))
+        else:
+            lines.append("  {}: cilj ({}) presezen za {:.1f}%, trenutno {}".format(
+                r["symbol"], fmt_money(r["target_price"]), -pct, fmt_money(r["price"])))
+    return "\n".join(lines)
+
+
+def render_html(cfg, rows, missing, total, port_ch24, glob, fng, auto_resolved,
+                onchain_html="", ai_briefing=None, mover=None, alerts=None):
     vs = cfg.get("vs_currency", "usd").upper()
     now = datetime.now(timezone.utc).strftime("%d.%m.%Y")
 
@@ -312,9 +421,12 @@ def render_html(cfg, rows, missing, total, port_ch24, glob, fng, auto_resolved, 
     ai_html = ""
     if ai_briefing:
         ai_html = (
-            "<div style='margin-top:16px;padding:12px 16px;background:#fff7e6;border-radius:8px;font-size:14px;color:#4a3800;white-space:pre-line'>"
+            "<div style='margin-top:16px;padding:12px 16px;background:#eef7f0;border-radius:8px;font-size:14px;color:#1f4a2e;white-space:pre-line'>"
             "<b>\U0001F916 AI Povzetek:</b><br>{}</div>"
         ).format(ai_briefing.replace("\n", "<br>"))
+
+    mover_html = render_mover_html(mover)
+    alerts_html = render_alerts_html(alerts)
 
     port_color = pct_color(port_ch24)
 
@@ -329,6 +441,7 @@ def render_html(cfg, rows, missing, total, port_ch24, glob, fng, auto_resolved, 
     <div style="font-size:30px;font-weight:700;margin:2px 0">{total}</div>
     <div style="font-size:15px;font-weight:600;color:{pcolor}">{pch} cez noc</div>
     {market}{fng}
+    {mover}
   </div>
 
   <table style="width:100%;border-collapse:collapse;background:#fff;border-radius:12px;overflow:hidden;font-size:14px">
@@ -348,6 +461,7 @@ def render_html(cfg, rows, missing, total, port_ch24, glob, fng, auto_resolved, 
   <div style="margin-top:16px;padding:12px 16px;background:#eef4ff;border-radius:8px;font-size:14px;color:#243b53">
     <b>Opazanje:</b> {note}
   </div>
+  {alerts}
   {missing}{resolved}
   {ai_briefing}
   {onchain}
@@ -360,14 +474,16 @@ def render_html(cfg, rows, missing, total, port_ch24, glob, fng, auto_resolved, 
         date=now, total=fmt_money(total),
         pcolor=port_color, pch=fmt_pct(port_ch24),
         market=market, fng=fng_html, body=body,
+        mover=mover_html,
         note=agent_note(rows, fng, port_ch24),
+        alerts=alerts_html,
         missing=miss_html, resolved=resolved_html,
         onchain=onchain_html or "",
         ai_briefing=ai_html,
     )
 
 
-def render_text(cfg, rows, total, port_ch24, onchain_text="", ai_briefing=None):
+def render_text(cfg, rows, total, port_ch24, onchain_text="", ai_briefing=None, mover=None, alerts=None):
     lines = [cfg.get("report_title", "Crypto porocilo"),
              datetime.now(timezone.utc).strftime("%d.%m.%Y"), ""]
     lines.append("Vrednost portfelja: {}  ({} cez noc)".format(fmt_money(total), fmt_pct(port_ch24)))
@@ -376,6 +492,14 @@ def render_text(cfg, rows, total, port_ch24, onchain_text="", ai_briefing=None):
         lines.append("{:<8} {:>14}  24h {:>8}  7d {:>8}  = {}".format(
             r["symbol"], fmt_money(r["price"]), fmt_pct(r["ch24"]),
             fmt_pct(r["ch7d"]), fmt_money(r["value"])))
+    mover_text = render_mover_text(mover)
+    if mover_text:
+        lines.append("")
+        lines.append(mover_text)
+    alerts_text = render_alerts_text(alerts)
+    if alerts_text:
+        lines.append("")
+        lines.append(alerts_text)
     if ai_briefing:
         lines.append("")
         lines.append("AI POVZETEK:")
@@ -417,6 +541,7 @@ def main():
     print("Nalagam config...")
     cfg = load_config()
     vs = cfg.get("vs_currency", "usd")
+    target_alert_threshold_pct = float(cfg.get("target_alert_threshold_pct", 5))
 
     print("Razresujem coine...")
     holdings, auto_resolved = build_holdings(cfg)
@@ -431,6 +556,9 @@ def main():
     rows, missing, total, port_ch24 = compute_portfolio(holdings, mmap, vs)
     if missing:
         print("  ! brez cene:", ", ".join(m["symbol"] for m in missing))
+
+    mover = find_biggest_mover(rows)
+    alerts = find_target_alerts(rows, target_alert_threshold_pct)
 
     # --- onchain borzni tokovi (opcijsko) ---
     onchain_html, onchain_text = "", ""
@@ -453,8 +581,9 @@ def main():
         except Exception as e:
             print("  ! AI povzetek ni uspel:", e)
 
-    html = render_html(cfg, rows, missing, total, port_ch24, glob, fng, auto_resolved, onchain_html, ai_briefing)
-    text = render_text(cfg, rows, total, port_ch24, onchain_text, ai_briefing)
+    html = render_html(cfg, rows, missing, total, port_ch24, glob, fng, auto_resolved,
+                        onchain_html, ai_briefing, mover, alerts)
+    text = render_text(cfg, rows, total, port_ch24, onchain_text, ai_briefing, mover, alerts)
 
     subject = "{} - {} ({})".format(
         cfg.get("report_title", "Crypto porocilo"),
