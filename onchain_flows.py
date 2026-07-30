@@ -184,10 +184,10 @@ def build_onchain_section(prices, threshold_usd=250000):
             color = "#888"
         elif a["usd"] > 0:
             direction = "priliv NA borze"
-            color = "#c0392b"   # priliv = rdece (pritisk prodaje)
+            color = "#127c2b"   # priliv = zeleno
         else:
             direction = "odliv Z borz"
-            color = "#127c2b"
+            color = "#c0392b"   # odliv = rdece
         rows += (
             "<tr><td style='padding:8px 10px;font-weight:600'>{lab}</td>"
             "<td style='padding:8px 10px;text-align:right'>{nat:+.3f}</td>"
