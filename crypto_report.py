@@ -103,6 +103,25 @@ def pct_color(x):
     return "#127c2b" if x >= 0 else "#c0392b"
 
 
+def ai_markup_to_html(text):
+    if not text:
+        return text
+    text = text.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+    text = text.replace("{{POS}}", "<span style='color:#127c2b;font-weight:600'>")
+    text = text.replace("{{/POS}}", "</span>")
+    text = text.replace("{{NEG}}", "<span style='color:#c0392b;font-weight:600'>")
+    text = text.replace("{{/NEG}}", "</span>")
+    return text
+
+
+def ai_markup_to_text(text):
+    if not text:
+        return text
+    for tag in ("{{POS}}", "{{/POS}}", "{{NEG}}", "{{/NEG}}"):
+        text = text.replace(tag, "")
+    return text
+
+
 # ---------------------------------------------------------------------------
 # Razresevanje CoinGecko ID iz simbola (za tokene brez rocno vpisanega id)
 # ---------------------------------------------------------------------------
@@ -363,6 +382,7 @@ def render_html(cfg, rows, missing, total, port_ch24, glob, fng, auto_resolved,
     now = datetime.now(timezone.utc).strftime("%d.%m.%Y")
 
     def row_html(r):
+        target_disp = None if r.get("pct_to_target") is None else -r["pct_to_target"]
         return (
             "<tr>"
             "<td style='padding:8px 10px;font-weight:600'>{sym}</td>"
@@ -371,12 +391,14 @@ def render_html(cfg, rows, missing, total, port_ch24, glob, fng, auto_resolved,
             "<td style='padding:8px 10px;text-align:right;color:{c7d}'>{p7d}</td>"
             "<td style='padding:8px 10px;text-align:right'>{amt:g}</td>"
             "<td style='padding:8px 10px;text-align:right;font-weight:600'>{val}</td>"
+            "<td style='padding:8px 10px;text-align:right;color:{ctg}'>{ptg}</td>"
             "</tr>"
         ).format(
             sym=r["symbol"], price=fmt_money(r["price"]),
             c24=pct_color(r["ch24"]), p24=fmt_pct(r["ch24"]),
             c7d=pct_color(r["ch7d"]), p7d=fmt_pct(r["ch7d"]),
             amt=r["amount"], val=fmt_money(r["value"]),
+            ctg=pct_color(target_disp), ptg=fmt_pct(target_disp),
         )
 
     body = "".join(row_html(r) for r in rows)
@@ -423,7 +445,7 @@ def render_html(cfg, rows, missing, total, port_ch24, glob, fng, auto_resolved,
         ai_html = (
             "<div style='margin-top:16px;padding:12px 16px;background:#eef7f0;border-radius:8px;font-size:14px;color:#1f4a2e;white-space:pre-line'>"
             "<b>\U0001F916 AI Povzetek:</b><br>{}</div>"
-        ).format(ai_briefing.replace("\n", "<br>"))
+        ).format(ai_markup_to_html(ai_briefing).replace("\n", "<br>"))
 
     mover_html = render_mover_html(mover)
     alerts_html = render_alerts_html(alerts)
@@ -453,6 +475,7 @@ def render_html(cfg, rows, missing, total, port_ch24, glob, fng, auto_resolved,
         <th style="padding:10px;text-align:right">7d</th>
         <th style="padding:10px;text-align:right">Kolicina</th>
         <th style="padding:10px;text-align:right">Vrednost</th>
+        <th style="padding:10px;text-align:right">Cilj</th>
       </tr>
     </thead>
     <tbody>{body}</tbody>
@@ -489,9 +512,10 @@ def render_text(cfg, rows, total, port_ch24, onchain_text="", ai_briefing=None, 
     lines.append("Vrednost portfelja: {}  ({} cez noc)".format(fmt_money(total), fmt_pct(port_ch24)))
     lines.append("")
     for r in rows:
-        lines.append("{:<8} {:>14}  24h {:>8}  7d {:>8}  = {}".format(
+        target_disp = None if r.get("pct_to_target") is None else -r["pct_to_target"]
+        lines.append("{:<8} {:>14}  24h {:>8}  7d {:>8}  = {:>14}  cilj {:>8}".format(
             r["symbol"], fmt_money(r["price"]), fmt_pct(r["ch24"]),
-            fmt_pct(r["ch7d"]), fmt_money(r["value"])))
+            fmt_pct(r["ch7d"]), fmt_money(r["value"]), fmt_pct(target_disp)))
     mover_text = render_mover_text(mover)
     if mover_text:
         lines.append("")
@@ -503,7 +527,7 @@ def render_text(cfg, rows, total, port_ch24, onchain_text="", ai_briefing=None, 
     if ai_briefing:
         lines.append("")
         lines.append("AI POVZETEK:")
-        lines.append(ai_briefing)
+        lines.append(ai_markup_to_text(ai_briefing))
     if onchain_text:
         lines.append("")
         lines.append(onchain_text)
