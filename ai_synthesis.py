@@ -120,6 +120,11 @@ def generate_ai_briefing(rows, total, port_ch24, glob=None, fng=None, onchain_te
         ]
         return "\n".join(text_blocks).strip() or None
     except urllib.error.HTTPError as e:
-        return "(AI povzetek ni uspel: HTTP {} - {})".format(e.code, e.reason)
+        try:
+            body = e.read().decode("utf-8", errors="replace")
+        except Exception:
+            body = "(telesa napake ni bilo mogoce prebrati)"
+        print("  ! AI API napaka, telo odgovora:", body)
+        return "(AI povzetek ni uspel: HTTP {} - {} - {})".format(e.code, e.reason, body)
     except Exception as e:
         return "(AI povzetek ni uspel: {})".format(e)
