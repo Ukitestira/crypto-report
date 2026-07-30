@@ -11,9 +11,9 @@
     {"symbol": "ADA",    "amount": 755,    "id": "cardano",               "avg_buy_price": 0.16, "target_price": 2.00},
     {"symbol": "AVAX",   "amount": 30,     "id": "avalanche-2",           "avg_buy_price": 6.5, "target_price": 20.00},
     {"symbol": "SOL",    "amount": 5,      "id": "solana",                "avg_buy_price": null, "target_price": null},
-    {"symbol": "KARRAT", "amount": 13400, "id": "karrat",                "note": "karrat",              "avg_buy_price": 0.0027, "target_price": 0,5},
+    {"symbol": "KARRAT", "amount": 13400, "id": "karrat",                "note": "karrat",              "avg_buy_price": 0.0027, "target_price": 0.5},
     {"symbol": "BLACK",  "amount": 90800, "id": "blackhole",             "note": "Blackhole",           "avg_buy_price": 0.002542, "target_price": 0.1},
     {"symbol": "JITO",   "amount": 390,      "id": "jito-governance-token", "note": "jito-governance-token", "avg_buy_price": 0.60, "target_price": 3.5},
-    {"symbol": "PUMP",   "amount": 124,    "id": "pump-fun",              "note": "pump.fun",            "avg_buy_price": 0.001617, "target_price": 0,005}
+    {"symbol": "PUMP",   "amount": 124,    "id": "pump-fun",              "note": "pump.fun",            "avg_buy_price": 0.001617, "target_price": 0.005}
   ]
 }
