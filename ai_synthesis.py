@@ -44,6 +44,15 @@ Tvoja naloga:
   (koncentracija, korelacija, osamelec glede na ostale).
 - Navaden tekst, brez markdown naslovov. En kratek zakljucni stavek, da
   to ni financni nasvet - ne vec.
+- Skupna dolzina odgovora naj bo pod 160 besed. Vedno dokoncaj zadnji
+  stavek - raje izpusti eno tocko, kot da pustis stavek nedokoncan.
+- Oznacevanje barv: kjer podas POZITIVNO/bikovsko interpretacijo (moznost
+  rasti, kopicenje, presezen cilj, ugoden signal), tocno tisto kratko
+  besedno zvezo obdaj z {{POS}} in {{/POS}}. Kjer podas NEGATIVNO/medvedjo
+  interpretacijo (moznost padca, razprodaja, slab signal, zaostajanje za
+  ciljem), obdaj z {{NEG}} in {{/NEG}}. Uporabi to samo za dejansko
+  interpretacijo/sklep, ne za surove nevtralne stevilke. Ne uporabljaj
+  nobenih drugih oznak ali markdown formatiranja.
 - Ne ponavljaj tocnih stevilk, ki so ze v tabeli spodaj, razen ce je to
   nujno za tocko, ki jo delas.
 - Pisi v slovenscini.
@@ -95,7 +104,7 @@ def generate_ai_briefing(rows, total, port_ch24, glob=None, fng=None, onchain_te
 
     payload = {
         "model": MODEL,
-        "max_tokens": 600,
+        "max_tokens": 1000,
         "system": SYSTEM_PROMPT,
         "messages": [{"role": "user", "content": prompt}],
     }
