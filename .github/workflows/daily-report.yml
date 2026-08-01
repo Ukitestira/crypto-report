@@ -2,9 +2,11 @@ name: Jutranje crypto porocilo
 
 on:
   schedule:
-    # Cas je v UTC! 06:00 UTC = ~07:00 (zima) / ~08:00 (poletje) po slovenskem casu.
-    # Spremeni po zelji. Format: minuta ura * * *
-    - cron: "0 6 * * *"
+    # GitHub Actions cron pozna samo UTC in ne upostevaja poletnega/zimskega casa (DST).
+    # Slovenija: poleti UTC+2 (CEST), pozimi UTC+1 (CET). Zato dva sprozilca + spodnje
+    # varovalo, ki preveri pravi lokalni cas in prepreci podvojeno posiljanje.
+    - cron: "0 4 * * *"   # velja poleti (CEST) -> 06:00 po slovenskem casu
+    - cron: "0 5 * * *"   # velja pozimi (CET)  -> 06:00 po slovenskem casu
   workflow_dispatch: {}   # omogoca rocni zagon iz zavihka Actions
 
 permissions:
@@ -14,15 +16,27 @@ jobs:
   report:
     runs-on: ubuntu-latest
     steps:
+      - name: Preveri lokalni cas (Ljubljana)
+        run: |
+          HOUR=$(TZ=Europe/Ljubljana date +%H)
+          echo "Trenutna ura v Ljubljani: $HOUR:xx"
+          if [ "$HOUR" != "06" ]; then
+            echo "Ni 06:00 po slovenskem casu (DST sprozilec, ki danes ne velja) - preskocim."
+            echo "SKIP=true" >> "$GITHUB_ENV"
+          fi
+
       - name: Checkout
+        if: env.SKIP != 'true'
         uses: actions/checkout@v4
 
       - name: Setup Python
+        if: env.SKIP != 'true'
         uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
       - name: Poslji porocilo
+        if: env.SKIP != 'true'
         env:
           EMAIL_USER: ${{ secrets.EMAIL_USER }}
           EMAIL_APP_PASSWORD: ${{ secrets.EMAIL_APP_PASSWORD }}
@@ -35,6 +49,7 @@ jobs:
         run: python crypto_report.py
 
       - name: Shrani stanje (onchain saldi)
+        if: env.SKIP != 'true'
         run: |
           if [ -n "$(git status --porcelain state/)" ]; then
             git config user.name "crypto-report-bot"
