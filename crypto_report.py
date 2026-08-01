@@ -43,6 +43,13 @@ except Exception as e:
     print("  ! ai_synthesis uvoz ni uspel:", repr(e))
     generate_ai_briefing = None
 
+# Opcijski modul za likvidnostne signale in R:R 1:4 scenarije (BTC). Ce ga ni, porocilo tece brez njega.
+try:
+    from liquidity_setup import build_liquidity_section
+except Exception as e:
+    print("  ! liquidity_setup uvoz ni uspel:", repr(e))
+    build_liquidity_section = None
+
 # --- okoljske spremenljivke ---
 EMAIL_USER = os.environ.get("EMAIL_USER", "")
 EMAIL_APP_PASSWORD = os.environ.get("EMAIL_APP_PASSWORD", "")
@@ -377,7 +384,7 @@ def render_alerts_text(alerts):
 
 
 def render_html(cfg, rows, missing, total, port_ch24, glob, fng, auto_resolved,
-                onchain_html="", ai_briefing=None, mover=None, alerts=None):
+                onchain_html="", ai_briefing=None, mover=None, alerts=None, liquidity_html=""):
     vs = cfg.get("vs_currency", "usd").upper()
     now = datetime.now(timezone.utc).strftime("%d.%m.%Y")
 
@@ -488,9 +495,10 @@ def render_html(cfg, rows, missing, total, port_ch24, glob, fng, auto_resolved,
   {missing}{resolved}
   {ai_briefing}
   {onchain}
+  {liquidity}
 
   <p style="margin-top:20px;color:#aaa;font-size:12px;line-height:1.5">
-    Informativno porocilo, ne financni nasvet. Podatki: CoinGecko, Alternative.me.
+    Informativno porocilo, ne financni nasvet. Podatki: CoinGecko, Alternative.me, Bybit.
   </p>
 </div></body></html>""".format(
         title=cfg.get("report_title", "Crypto porocilo"),
@@ -503,10 +511,11 @@ def render_html(cfg, rows, missing, total, port_ch24, glob, fng, auto_resolved,
         missing=miss_html, resolved=resolved_html,
         onchain=onchain_html or "",
         ai_briefing=ai_html,
+        liquidity=liquidity_html or "",
     )
 
 
-def render_text(cfg, rows, total, port_ch24, onchain_text="", ai_briefing=None, mover=None, alerts=None):
+def render_text(cfg, rows, total, port_ch24, onchain_text="", ai_briefing=None, mover=None, alerts=None, liquidity_text=""):
     lines = [cfg.get("report_title", "Crypto porocilo"),
              datetime.now(timezone.utc).strftime("%d.%m.%Y"), ""]
     lines.append("Vrednost portfelja: {}  ({} cez noc)".format(fmt_money(total), fmt_pct(port_ch24)))
@@ -531,6 +540,9 @@ def render_text(cfg, rows, total, port_ch24, onchain_text="", ai_briefing=None, 
     if onchain_text:
         lines.append("")
         lines.append(onchain_text)
+    if liquidity_text:
+        lines.append("")
+        lines.append(liquidity_text)
     lines.append("")
     lines.append("Informativno, ne financni nasvet.")
     return "\n".join(lines)
@@ -605,9 +617,19 @@ def main():
         except Exception as e:
             print("  ! AI povzetek ni uspel:", e)
 
+    # --- likvidnostni signali + R:R 1:4 scenariji za BTC (opcijsko) ---
+    liquidity_html, liquidity_text = "", ""
+    if build_liquidity_section is not None:
+        print("Racunam likvidnostne signale (BTC)...")
+        risk_pct = float(cfg.get("liquidity_risk_pct", 1))
+        try:
+            liquidity_html, liquidity_text = build_liquidity_section(total, risk_pct)
+        except Exception as e:
+            print("  ! likvidnostni razdelek ni uspel:", e)
+
     html = render_html(cfg, rows, missing, total, port_ch24, glob, fng, auto_resolved,
-                        onchain_html, ai_briefing, mover, alerts)
-    text = render_text(cfg, rows, total, port_ch24, onchain_text, ai_briefing, mover, alerts)
+                        onchain_html, ai_briefing, mover, alerts, liquidity_html)
+    text = render_text(cfg, rows, total, port_ch24, onchain_text, ai_briefing, mover, alerts, liquidity_text)
 
     subject = "{} - {} ({})".format(
         cfg.get("report_title", "Crypto porocilo"),
