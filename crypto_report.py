@@ -624,8 +624,16 @@ def main():
         risk_pct = float(cfg.get("liquidity_risk_pct", 1))
         try:
             liquidity_html, liquidity_text = build_liquidity_section(total, risk_pct)
+            print("  [debug] liquidity_html dolzina:", len(liquidity_html or ""),
+                  "| liquidity_text dolzina:", len(liquidity_text or ""))
+            if liquidity_text:
+                print("  [debug] liquidity_text vsebina:", repr(liquidity_text[:200]))
         except Exception as e:
-            print("  ! likvidnostni razdelek ni uspel:", e)
+            import traceback
+            print("  ! likvidnostni razdelek ni uspel:", repr(e))
+            traceback.print_exc()
+    else:
+        print("  [debug] build_liquidity_section je None (uvoz modula ni uspel)")
 
     html = render_html(cfg, rows, missing, total, port_ch24, glob, fng, auto_resolved,
                         onchain_html, ai_briefing, mover, alerts, liquidity_html)
