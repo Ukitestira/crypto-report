@@ -2,32 +2,39 @@ name: Jutranje crypto porocilo
 
 on:
   schedule:
-    # GitHub Actions cron pozna samo UTC in ne upostevaja poletnega/zimskega casa (DST).
-    # Slovenija: poleti UTC+2 (CEST), pozimi UTC+1 (CET). Zato dva sprozilca + spodnje
-    # varovalo, ki preveri pravi lokalni cas in prepreci podvojeno posiljanje.
-    - cron: "0 4 * * *"   # velja poleti (CEST) -> 06:00 po slovenskem casu
-    - cron: "0 5 * * *"   # velja pozimi (CET)  -> 06:00 po slovenskem casu
+    # GitHub Actions cron zna zamujati - danes je zamudilo za vec kot 3 ure (04:00 UTC
+    # sprozilec se je dejansko izvedel sele okoli 07:30 UTC). Zato sirok casovni okvir
+    # (03:00-11:30 UTC, vsakih 30 min) + spodnje varovalo, ki preveri "je ze >=06:00 PO
+    # SLOVENSKEM CASU IN se DANES ni bilo poslano" - to ujame posiljanje ne glede na to,
+    # kako pozno GitHub dejansko sprozi zagon, hkrati pa nikoli ne podvoji posiljanja.
+    - cron: "*/30 3-11 * * *"
   workflow_dispatch: {}   # omogoca rocni zagon iz zavihka Actions
 
 permissions:
-  contents: write          # potrebno za commit stanja (state/onchain_snapshot.json)
+  contents: write          # potrebno za commit stanja (state/*.json)
 
 jobs:
   report:
     runs-on: ubuntu-latest
     steps:
-      - name: Preveri lokalni cas (Ljubljana)
-        run: |
-          HOUR=$(TZ=Europe/Ljubljana date +%H)
-          echo "Trenutna ura v Ljubljani: $HOUR:xx"
-          if [ "$HOUR" != "06" ]; then
-            echo "Ni 06:00 po slovenskem casu (DST sprozilec, ki danes ne velja) - preskocim."
-            echo "SKIP=true" >> "$GITHUB_ENV"
-          fi
-
       - name: Checkout
-        if: env.SKIP != 'true'
         uses: actions/checkout@v4
+
+      - name: Preveri urnik (Ljubljana, >=06:00 in se ni poslano danes)
+        run: |
+          HOUR=$((10#$(TZ=Europe/Ljubljana date +%H)))
+          TODAY=$(TZ=Europe/Ljubljana date +%F)
+          LAST_SENT=$(python3 -c "import json;print(json.load(open('state/schedule_state.json')).get('last_sent_date',''))" 2>/dev/null || echo "")
+          echo "Lokalni cas: ${HOUR}:xx, danasnji datum: $TODAY, nazadnje poslano: ${LAST_SENT:-(nikoli)}"
+          if [ "$HOUR" -lt 6 ]; then
+            echo "Se ni 06:00 po slovenskem casu - preskocim."
+            echo "SKIP=true" >> "$GITHUB_ENV"
+          elif [ "$LAST_SENT" = "$TODAY" ]; then
+            echo "Porocilo je bilo danes ze poslano - preskocim (preprecujem podvojitev)."
+            echo "SKIP=true" >> "$GITHUB_ENV"
+          else
+            echo "Posiljam porocilo."
+          fi
 
       - name: Setup Python
         if: env.SKIP != 'true'
@@ -48,14 +55,21 @@ jobs:
           SOLANA_RPC_URL: ${{ secrets.SOLANA_RPC_URL }}
         run: python crypto_report.py
 
-      - name: Shrani stanje (onchain saldi)
+      - name: Oznaci kot poslano danes
+        if: env.SKIP != 'true'
+        run: |
+          mkdir -p state
+          TODAY=$(TZ=Europe/Ljubljana date +%F)
+          python3 -c "import json,os; os.makedirs('state', exist_ok=True); json.dump({'last_sent_date': '$TODAY'}, open('state/schedule_state.json','w'), indent=2)"
+
+      - name: Shrani stanje (onchain saldi, urnik, likvidnost)
         if: env.SKIP != 'true'
         run: |
           if [ -n "$(git status --porcelain state/)" ]; then
             git config user.name "crypto-report-bot"
             git config user.email "actions@users.noreply.github.com"
             git add state/
-            git commit -m "Posodobitev onchain stanja [skip ci]"
+            git commit -m "Posodobitev stanja [skip ci]"
             git pull --rebase origin main
             git push
           else
