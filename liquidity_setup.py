@@ -240,11 +240,18 @@ def build_liquidity_section(portfolio_value=None, risk_pct=1.0):
     Vrne (html, text). Ce karkoli spodleti, vrne prazen html in opis napake v text,
     da glavno porocilo ne obstane.
     """
+    print("  [liquidity debug] zacenjam build_liquidity_section")
     try:
         ticker = fetch_ticker()
+        print("  [liquidity debug] fetch_ticker OK:", ticker)
         bid_vol, ask_vol = fetch_orderbook()
+        print("  [liquidity debug] fetch_orderbook OK:", bid_vol, ask_vol)
         candles = fetch_klines()
+        print("  [liquidity debug] fetch_klines OK, sveck:", len(candles))
     except Exception as e:
+        import traceback
+        print("  [liquidity debug] FETCH NAPAKA:", repr(e))
+        traceback.print_exc()
         return ("", "Likvidnostni razdelek: pridobivanje podatkov ni uspelo ({}).".format(e))
 
     atr = compute_atr(candles)
