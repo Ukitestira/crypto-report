@@ -10,10 +10,11 @@ POMEMBNO - kaj ta modul JE in kaj NI:
     OBEH smereh (long in short), da uporabnik lahko sam presodi in nastavi
     poziciji na podlagi lastne analize.
 
-Vir podatkov (brezplacen, brez kljuca): Bybit V5 public market API
-  - /v5/market/tickers        -> funding rate, mark price, open interest
-  - /v5/market/orderbook      -> bid/ask imbalance
-  - /v5/market/kline          -> 4h sveke za ATR(14) in swing high/low
+Vir podatkov (oba brezplacna, brez kljuca) - poskusi po vrsti, prvi ki uspe zmaga:
+  1. OKX  - /api/v5/market/ticker, /public/funding-rate, /public/open-interest,
+            /market/books, /market/candles  (BTC-USDT-SWAP)
+  2. Bybit V5 - /v5/market/tickers, /v5/market/orderbook, /v5/market/kline (BTCUSDT)
+     (rezerva - Bybit je opazovano blokiral GitHub Actions runner IP-je s HTTP 403)
 
 Stanje (prejsnji OI) se hrani v state/liquidity_state.json in ga GitHub
 Actions po vsakem zagonu commita nazaj v repo (enak vzorec kot onchain_flows.py).
@@ -27,13 +28,15 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 
+OKX_BASE = "https://www.okx.com/api/v5"
 BYBIT_BASE = "https://api.bybit.com/v5/market"
 STATE_DIR = os.environ.get("STATE_DIR", "state")
 STATE_PATH = os.path.join(STATE_DIR, "liquidity_state.json")
 UA = {"User-Agent": "morning-crypto-report/1.0"}
 
-SYMBOL = "BTCUSDT"          # Bybit linear perpetual - najboljsi javni proxy za BTC/USDC likvidnost
-KLINE_INTERVAL = "240"       # 240 min = 4h
+OKX_INST = "BTC-USDT-SWAP"  # OKX perpetual - primarni vir
+SYMBOL = "BTCUSDT"          # Bybit linear perpetual - rezervni vir
+KLINE_INTERVAL = "240"       # 240 min = 4h (bybit)
 ATR_PERIOD = 14
 SWING_LOOKBACK = 20          # sveke za swing high/low (na 4h ~ 3-4 dni)
 ORDERBOOK_DEPTH = 50         # nivojev na vsako stran za imbalance
@@ -56,6 +59,14 @@ def _bybit_get(path, params):
     return d["result"]
 
 
+def _okx_get(path, params):
+    url = OKX_BASE + path + "?" + urllib.parse.urlencode(params)
+    d = _get_json(url)
+    if d.get("code") != "0":
+        raise RuntimeError("OKX napaka ({}): {}".format(path, d.get("msg")))
+    return d["data"]
+
+
 # ---------------------------------------------------------------------------
 def load_state():
     try:
@@ -76,43 +87,83 @@ def save_state(open_interest, mark_price):
 
 
 # ---------------------------------------------------------------------------
-def fetch_ticker():
-    """Funding rate, mark/last price, open interest - vse v enem klicu."""
+# OKX - primarni vir
+def _fetch_all_okx():
+    tk = _okx_get("/market/ticker", {"instId": OKX_INST})[0]
+    fr = _okx_get("/public/funding-rate", {"instId": OKX_INST})[0]
+    oi = _okx_get("/public/open-interest", {"instId": OKX_INST})[0]
+    last = float(tk["last"])
+    open24h = float(tk.get("open24h", 0)) or None
+
+    ticker = {
+        "last_price": last,
+        "mark_price": last,   # OKX ticker nima locenega mark price polja tukaj - last je dovolj natancen
+        "funding_rate": float(fr["fundingRate"]),
+        "open_interest": float(oi["oiCcy"]),          # v BTC
+        "open_interest_usd": float(oi["oiCcy"]) * last,
+        "prev_price_24h": open24h,
+    }
+
+    book = _okx_get("/market/books", {"instId": OKX_INST, "sz": str(ORDERBOOK_DEPTH)})[0]
+    bid_vol = sum(float(b[1]) for b in book.get("bids", []))
+    ask_vol = sum(float(a[1]) for a in book.get("asks", []))
+
+    limit = max(ATR_PERIOD, SWING_LOOKBACK) + 5
+    rows = _okx_get("/market/candles", {"instId": OKX_INST, "bar": "4H", "limit": str(limit)})
+    candles = []
+    for r in rows:
+        # okx format: [ts, o, h, l, c, vol, volCcy, volCcyQuote, confirm]
+        candles.append({"open": float(r[1]), "high": float(r[2]),
+                         "low": float(r[3]), "close": float(r[4])})
+    candles.reverse()  # okx vraca najnovejso prvo -> obrnemo v kronolosko
+
+    return ticker, (bid_vol, ask_vol), candles
+
+
+# ---------------------------------------------------------------------------
+# Bybit - rezervni vir (ce OKX ne uspe)
+def _fetch_all_bybit():
     result = _bybit_get("/tickers", {"category": "linear", "symbol": SYMBOL})
     row = result["list"][0]
-    return {
+    ticker = {
         "last_price": float(row["lastPrice"]),
         "mark_price": float(row["markPrice"]),
-        "funding_rate": float(row["fundingRate"]),          # npr. 0.0001 = 0.01% na 8h
-        "open_interest": float(row["openInterest"]),         # v BTC
+        "funding_rate": float(row["fundingRate"]),
+        "open_interest": float(row["openInterest"]),
         "open_interest_usd": float(row.get("openInterestValue", 0)),
         "prev_price_24h": float(row.get("prevPrice24h", 0)) or None,
     }
 
+    ob = _bybit_get("/orderbook", {"category": "linear", "symbol": SYMBOL, "limit": ORDERBOOK_DEPTH})
+    bid_vol = sum(float(b[1]) for b in ob.get("b", []))
+    ask_vol = sum(float(a[1]) for a in ob.get("a", []))
 
-def fetch_orderbook():
-    """Vrne (bid_vol, ask_vol) - vsota kolicin na top N nivojih."""
-    result = _bybit_get("/orderbook", {"category": "linear", "symbol": SYMBOL, "limit": ORDERBOOK_DEPTH})
-    bid_vol = sum(float(b[1]) for b in result.get("b", []))
-    ask_vol = sum(float(a[1]) for a in result.get("a", []))
-    return bid_vol, ask_vol
-
-
-def fetch_klines():
-    """Vrne seznam sveck [{open,high,low,close}], kronolosko (najstarejsa prva)."""
     limit = max(ATR_PERIOD, SWING_LOOKBACK) + 5
-    result = _bybit_get("/kline", {"category": "linear", "symbol": SYMBOL,
-                                    "interval": KLINE_INTERVAL, "limit": limit})
-    rows = result.get("list", [])
+    kl = _bybit_get("/kline", {"category": "linear", "symbol": SYMBOL,
+                                "interval": KLINE_INTERVAL, "limit": limit})
     candles = []
-    for r in rows:
-        # bybit format: [start, open, high, low, close, volume, turnover]
-        candles.append({
-            "open": float(r[1]), "high": float(r[2]),
-            "low": float(r[3]), "close": float(r[4]),
-        })
-    candles.reverse()  # bybit vraca najnovejso prvo -> obrnemo v kronolosko
-    return candles
+    for r in kl.get("list", []):
+        candles.append({"open": float(r[1]), "high": float(r[2]),
+                         "low": float(r[3]), "close": float(r[4])})
+    candles.reverse()
+
+    return ticker, (bid_vol, ask_vol), candles
+
+
+# ---------------------------------------------------------------------------
+def fetch_all():
+    """Poskusi ponudnike po vrsti (OKX, nato Bybit); prvi ki uspe zmaga."""
+    providers = [("OKX", _fetch_all_okx), ("Bybit", _fetch_all_bybit)]
+    last_err = None
+    for name, fn in providers:
+        try:
+            ticker, (bid_vol, ask_vol), candles = fn()
+            print("  [liquidity debug] vir podatkov: {} (uspel)".format(name))
+            return ticker, bid_vol, ask_vol, candles, name
+        except Exception as e:
+            print("  [liquidity debug] vir {} ni uspel: {}".format(name, repr(e)))
+            last_err = e
+    raise last_err
 
 
 # ---------------------------------------------------------------------------
@@ -242,15 +293,11 @@ def build_liquidity_section(portfolio_value=None, risk_pct=1.0):
     """
     print("  [liquidity debug] zacenjam build_liquidity_section")
     try:
-        ticker = fetch_ticker()
-        print("  [liquidity debug] fetch_ticker OK:", ticker)
-        bid_vol, ask_vol = fetch_orderbook()
-        print("  [liquidity debug] fetch_orderbook OK:", bid_vol, ask_vol)
-        candles = fetch_klines()
-        print("  [liquidity debug] fetch_klines OK, sveck:", len(candles))
+        ticker, bid_vol, ask_vol, candles, source = fetch_all()
+        print("  [liquidity debug] podatki OK ({}), sveck: {}".format(source, len(candles)))
     except Exception as e:
         import traceback
-        print("  [liquidity debug] FETCH NAPAKA:", repr(e))
+        print("  [liquidity debug] VSI VIRI NEUSPESNI:", repr(e))
         traceback.print_exc()
         return ("", "Likvidnostni razdelek: pridobivanje podatkov ni uspelo ({}).".format(e))
 
@@ -304,7 +351,7 @@ def build_liquidity_section(portfolio_value=None, risk_pct=1.0):
         "<div style='margin-top:10px;font-size:11px;color:#888;line-height:1.5'>"
         "SL je postavljen za strukturni swing nivo + {buf}&times;ATR blazino, ker so ta obmocja "
         "pogosta tarca za pobiranje likvidnosti (stop hunt). To ni napoved smeri - oba scenarija "
-        "sta izracunana vzporedno; smer izberes na podlagi lastne analize. Vir: Bybit javni API. "
+        "sta izracunana vzporedno; smer izberes na podlagi lastne analize. Vir: {src} javni API. "
         "Ni financni nasvet."
         "</div>"
         "</div>"
@@ -313,7 +360,7 @@ def build_liquidity_section(portfolio_value=None, risk_pct=1.0):
         atr=_fmt_usd(atr), lb=SWING_LOOKBACK, sh=_fmt_usd(swing_high), sl_=_fmt_usd(swing_low_),
         long_row=setup_row("LONG scenarij", L, "#127c2b"),
         short_row=setup_row("SHORT scenarij", S, "#c0392b"),
-        buf=SL_ATR_BUFFER,
+        buf=SL_ATR_BUFFER, src=source,
     )
 
     text_lines = [
