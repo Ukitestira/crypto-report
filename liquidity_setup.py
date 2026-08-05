@@ -158,10 +158,10 @@ def fetch_all():
     for name, fn in providers:
         try:
             ticker, (bid_vol, ask_vol), candles = fn()
-            print("  [liquidity debug] vir podatkov: {} (uspel)".format(name))
+            print("  vir likvidnostnih podatkov: {}".format(name))
             return ticker, bid_vol, ask_vol, candles, name
         except Exception as e:
-            print("  [liquidity debug] vir {} ni uspel: {}".format(name, repr(e)))
+            print("  ! vir {} ni uspel: {}".format(name, e))
             last_err = e
     raise last_err
 
@@ -291,14 +291,9 @@ def build_liquidity_section(portfolio_value=None, risk_pct=1.0):
     Vrne (html, text). Ce karkoli spodleti, vrne prazen html in opis napake v text,
     da glavno porocilo ne obstane.
     """
-    print("  [liquidity debug] zacenjam build_liquidity_section")
     try:
         ticker, bid_vol, ask_vol, candles, source = fetch_all()
-        print("  [liquidity debug] podatki OK ({}), sveck: {}".format(source, len(candles)))
     except Exception as e:
-        import traceback
-        print("  [liquidity debug] VSI VIRI NEUSPESNI:", repr(e))
-        traceback.print_exc()
         return ("", "Likvidnostni razdelek: pridobivanje podatkov ni uspelo ({}).".format(e))
 
     atr = compute_atr(candles)
