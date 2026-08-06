@@ -76,3 +76,4 @@ jobs:
           else
             echo "Ni sprememb stanja."
           fi
+
