@@ -50,6 +50,13 @@ except Exception as e:
     print("  ! liquidity_setup uvoz ni uspel:", repr(e))
     build_liquidity_section = None
 
+# Opcijski modul za social sentiment (CryptoPanic novice + glasovi). Ce ga ni, porocilo tece brez njega.
+try:
+    from social_sentiment import build_social_section
+except Exception as e:
+    print("  ! social_sentiment uvoz ni uspel:", repr(e))
+    build_social_section = None
+
 # --- okoljske spremenljivke ---
 EMAIL_USER = os.environ.get("EMAIL_USER", "")
 EMAIL_APP_PASSWORD = os.environ.get("EMAIL_APP_PASSWORD", "")
@@ -384,7 +391,8 @@ def render_alerts_text(alerts):
 
 
 def render_html(cfg, rows, missing, total, port_ch24, glob, fng, auto_resolved,
-                onchain_html="", ai_briefing=None, mover=None, alerts=None, liquidity_html=""):
+                onchain_html="", ai_briefing=None, mover=None, alerts=None, liquidity_html="",
+                social_html=""):
     vs = cfg.get("vs_currency", "usd").upper()
     now = datetime.now(timezone.utc).strftime("%d.%m.%Y")
 
@@ -496,9 +504,10 @@ def render_html(cfg, rows, missing, total, port_ch24, glob, fng, auto_resolved,
   {ai_briefing}
   {onchain}
   {liquidity}
+  {social}
 
   <p style="margin-top:20px;color:#aaa;font-size:12px;line-height:1.5">
-    Informativno porocilo, ne financni nasvet. Podatki: CoinGecko, Alternative.me, Bybit.
+    Informativno porocilo, ne financni nasvet. Podatki: CoinGecko, Alternative.me, Bybit, CryptoPanic.
   </p>
 </div></body></html>""".format(
         title=cfg.get("report_title", "Crypto porocilo"),
@@ -512,10 +521,12 @@ def render_html(cfg, rows, missing, total, port_ch24, glob, fng, auto_resolved,
         onchain=onchain_html or "",
         ai_briefing=ai_html,
         liquidity=liquidity_html or "",
+        social=social_html or "",
     )
 
 
-def render_text(cfg, rows, total, port_ch24, onchain_text="", ai_briefing=None, mover=None, alerts=None, liquidity_text=""):
+def render_text(cfg, rows, total, port_ch24, onchain_text="", ai_briefing=None, mover=None, alerts=None,
+                 liquidity_text="", social_text=""):
     lines = [cfg.get("report_title", "Crypto porocilo"),
              datetime.now(timezone.utc).strftime("%d.%m.%Y"), ""]
     lines.append("Vrednost portfelja: {}  ({} cez noc)".format(fmt_money(total), fmt_pct(port_ch24)))
@@ -543,6 +554,9 @@ def render_text(cfg, rows, total, port_ch24, onchain_text="", ai_briefing=None, 
     if liquidity_text:
         lines.append("")
         lines.append(liquidity_text)
+    if social_text:
+        lines.append("")
+        lines.append(social_text)
     lines.append("")
     lines.append("Informativno, ne financni nasvet.")
     return "\n".join(lines)
@@ -627,9 +641,20 @@ def main():
         except Exception as e:
             print("  ! likvidnostni razdelek ni uspel:", e)
 
+    # --- social sentiment (opcijsko) ---
+    social_html, social_text = "", ""
+    if build_social_section is not None:
+        print("Pridobivam social sentiment (CryptoPanic)...")
+        watch_symbols = cfg.get("social_watchlist") or [h["symbol"] for h in holdings]
+        try:
+            social_html, social_text = build_social_section(watch_symbols)
+        except Exception as e:
+            print("  ! social sentiment razdelek ni uspel:", e)
+
     html = render_html(cfg, rows, missing, total, port_ch24, glob, fng, auto_resolved,
-                        onchain_html, ai_briefing, mover, alerts, liquidity_html)
-    text = render_text(cfg, rows, total, port_ch24, onchain_text, ai_briefing, mover, alerts, liquidity_text)
+                        onchain_html, ai_briefing, mover, alerts, liquidity_html, social_html)
+    text = render_text(cfg, rows, total, port_ch24, onchain_text, ai_briefing, mover, alerts,
+                        liquidity_text, social_text)
 
     subject = "{} - {} ({})".format(
         cfg.get("report_title", "Crypto porocilo"),
