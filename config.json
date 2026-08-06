@@ -4,6 +4,7 @@
   "onchain_threshold_usd": 250000,
   "target_alert_threshold_pct": 5,
   "liquidity_risk_pct": 1,
+  "social_watchlist": ["BTC", "ETH", "SOL", "ADA", "AVAX", "KARRAT", "BLACK", "JITO", "PUMP"],
   "_comment": "Za dodajanje coina: prilepi novo vrstico v 'holdings'. 'id' je CoinGecko API ID (najdes ga na coin strani, labela 'API ID'). Ce 'id' nastavis na null, ga skripta poisce sama in ti v emailu javi, katerega je izbrala. 'avg_buy_price' je tvoja povprecna nakupna cena (za izracun % od nakupa) - pusti null, ce ne zelis tega izracuna. 'target_price' je ciljna cena za alert - pusti null, ce ne zelis alerta za ta coin. 'target_alert_threshold_pct' zgoraj dolo­ca, kako blizu cilju (v %) sprozi alert (privzeto 5%).",
   "holdings": [
     {"symbol": "USDC",   "amount": 76657.47, "id": "usd-coin",              "avg_buy_price": 0.99, "target_price": 0.99},
