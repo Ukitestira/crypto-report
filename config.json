@@ -9,14 +9,16 @@
   "holdings": [
     {"symbol": "USDC",   "amount": 76657.47, "id": "usd-coin",              "avg_buy_price": 0.99, "target_price": 0.99},
     {"symbol": "BTC",    "amount": 0.1384,   "id": "bitcoin",               "avg_buy_price": 30000, "target_price": 195000},
-    {"symbol": "HYPE",   "amount": 12.82,    "id": "hyperliquid",           "avg_buy_price": null, "target_price": null},
-    {"symbol": "SOL",    "amount": 6.10,     "id": "solana",                "avg_buy_price": null, "target_price": null},
-    {"symbol": "USDT",   "amount": 432.08,   "id": "tether",                "avg_buy_price": null, "target_price": null},
-    {"symbol": "CRO",    "amount": 6773.07,  "id": "crypto-com-chain",      "avg_buy_price": null, "target_price": null},
+    {"symbol": "HYPE",   "amount": 12.82,    "id": "hyperliquid",           "avg_buy_price": 57.00, "target_price": 95.00},
+    {"symbol": "SOL",    "amount": 6.10,     "id": "solana",                "avg_buy_price": 72, "target_price": 390},
+    {"symbol": "USDT",   "amount": 432.08,   "id": "tether",                "avg_buy_price": 0.99, "target_price": 1.10},
+    {"symbol": "CRO",    "amount": 6773.07,  "id": "crypto-com-chain",      "avg_buy_price": 0.07, "target_price": 0.22},
     {"symbol": "ETH",    "amount": 0.1726,   "id": "ethereum",              "avg_buy_price": null, "target_price": null},
-    {"symbol": "TSLAX",  "amount": 0.6964,   "id": "tesla-xstock",          "avg_buy_price": null, "target_price": null},
-    {"symbol": "VIRTUAL","amount": 391,      "id": "virtual-protocol",      "avg_buy_price": null, "target_price": null},
-    {"symbol": "TRAC",   "amount": 740,      "id": "origintrail",           "avg_buy_price": null, "target_price": null},
+    {"symbol": "TSLAX",  "amount": 0.6964,   "id": "tesla-xstock",          "avg_buy_price": 330, "target_price": 552},
+    {"symbol": "AAPLX",  "amount": 1.2964,   "id": "apple-xstock",          "avg_buy_price": 308, "target_price": 370},
+    {"symbol": "SNDK",  "amount": 1.1364,   "id": "sandisk-xstock",          "avg_buy_price": 1218, "target_price": 1552},
+    {"symbol": "VIRTUAL","amount": 391,      "id": "virtual-protocol",      "avg_buy_price": 0.60, "target_price": 1.25},
+    {"symbol": "TRAC",   "amount": 740,      "id": "origintrail",           "avg_buy_price": 0.27, "target_price": 0.5},
     {"symbol": "AVAX",   "amount": 30.20,    "id": "avalanche-2",           "avg_buy_price": 6.5, "target_price": 20.00},
     {"symbol": "JITO",   "amount": 390,      "id": "jito-governance-token", "note": "jito-governance-token", "avg_buy_price": 0.60, "target_price": 3.5},
     {"symbol": "BLACK",  "amount": 90869,    "id": "blackhole",             "note": "Blackhole",           "avg_buy_price": 0.002542, "target_price": 0.1},
@@ -34,6 +36,7 @@
     {"symbol": "PRO",    "amount": 7.50,     "id": "propy",                 "avg_buy_price": null, "target_price": null},
     {"symbol": "SOLX",   "amount": 43000,    "id": "solaxy",                "avg_buy_price": null, "target_price": null},
     {"symbol": "PUMP",   "amount": 124,      "id": "pump-fun",              "note": "pump.fun",            "avg_buy_price": 0.001617, "target_price": 0.005},
+    {"symbol": "CASHCAT","amount": 1100,     "id": "cash-cat",              "note": "cashcat",            "avg_buy_price": 0.11, "target_price": 0.3},
     {"symbol": "SETAI",  "amount": 46060,    "id": "sentient-ai",           "note": "SETAI Agents",        "avg_buy_price": null, "target_price": null}
   ]
 }
