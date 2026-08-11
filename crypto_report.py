@@ -57,6 +57,20 @@ except Exception as e:
     print("  ! social_sentiment uvoz ni uspel:", repr(e))
     build_social_section = None
 
+# Opcijski modul za DeFi rastni potencial (DefiLlama TVL). Ce ga ni, porocilo tece brez njega.
+try:
+    from defi_growth import build_defi_growth_section
+except Exception as e:
+    print("  ! defi_growth uvoz ni uspel:", repr(e))
+    build_defi_growth_section = None
+
+# Opcijski modul za Pionex BTC/USDT futures grid bot opomnik. Ce ga ni, porocilo tece brez njega.
+try:
+    from pionex_bot import build_pionex_grid_section
+except Exception as e:
+    print("  ! pionex_bot uvoz ni uspel:", repr(e))
+    build_pionex_grid_section = None
+
 # --- okoljske spremenljivke ---
 EMAIL_USER = os.environ.get("EMAIL_USER", "")
 EMAIL_APP_PASSWORD = os.environ.get("EMAIL_APP_PASSWORD", "")
@@ -392,7 +406,7 @@ def render_alerts_text(alerts):
 
 def render_html(cfg, rows, missing, total, port_ch24, glob, fng, auto_resolved,
                 onchain_html="", ai_briefing=None, mover=None, alerts=None, liquidity_html="",
-                social_html=""):
+                social_html="", defi_html="", pionex_html=""):
     vs = cfg.get("vs_currency", "usd").upper()
     now = datetime.now(timezone.utc).strftime("%d.%m.%Y")
 
@@ -505,9 +519,11 @@ def render_html(cfg, rows, missing, total, port_ch24, glob, fng, auto_resolved,
   {onchain}
   {liquidity}
   {social}
+  {defi}
+  {pionex}
 
   <p style="margin-top:20px;color:#aaa;font-size:12px;line-height:1.5">
-    Informativno porocilo, ne financni nasvet. Podatki: CoinGecko, Alternative.me, Bybit, CryptoPanic.
+    Informativno porocilo, ne financni nasvet. Podatki: CoinGecko, Alternative.me, Bybit, CryptoPanic, DefiLlama, OKX, Pionex.
   </p>
 </div></body></html>""".format(
         title=cfg.get("report_title", "Crypto porocilo"),
@@ -522,11 +538,13 @@ def render_html(cfg, rows, missing, total, port_ch24, glob, fng, auto_resolved,
         ai_briefing=ai_html,
         liquidity=liquidity_html or "",
         social=social_html or "",
+        defi=defi_html or "",
+        pionex=pionex_html or "",
     )
 
 
 def render_text(cfg, rows, total, port_ch24, onchain_text="", ai_briefing=None, mover=None, alerts=None,
-                 liquidity_text="", social_text=""):
+                 liquidity_text="", social_text="", defi_text="", pionex_text=""):
     lines = [cfg.get("report_title", "Crypto porocilo"),
              datetime.now(timezone.utc).strftime("%d.%m.%Y"), ""]
     lines.append("Vrednost portfelja: {}  ({} cez noc)".format(fmt_money(total), fmt_pct(port_ch24)))
@@ -557,6 +575,12 @@ def render_text(cfg, rows, total, port_ch24, onchain_text="", ai_briefing=None, 
     if social_text:
         lines.append("")
         lines.append(social_text)
+    if defi_text:
+        lines.append("")
+        lines.append(defi_text)
+    if pionex_text:
+        lines.append("")
+        lines.append(pionex_text)
     lines.append("")
     lines.append("Informativno, ne financni nasvet.")
     return "\n".join(lines)
@@ -651,10 +675,29 @@ def main():
         except Exception as e:
             print("  ! social sentiment razdelek ni uspel:", e)
 
+    # --- DeFi rastni potencial (opcijsko) ---
+    defi_html, defi_text = "", ""
+    if build_defi_growth_section is not None:
+        print("Pridobivam DeFi rastni potencial (DefiLlama)...")
+        try:
+            defi_html, defi_text = build_defi_growth_section()
+        except Exception as e:
+            print("  ! defi growth razdelek ni uspel:", e)
+
+    # --- Pionex BTC/USDT grid bot opomnik (opcijsko) ---
+    pionex_html, pionex_text = "", ""
+    if build_pionex_grid_section is not None:
+        print("Pridobivam Pionex grid bot stanje...")
+        try:
+            pionex_html, pionex_text = build_pionex_grid_section()
+        except Exception as e:
+            print("  ! pionex grid razdelek ni uspel:", e)
+
     html = render_html(cfg, rows, missing, total, port_ch24, glob, fng, auto_resolved,
-                        onchain_html, ai_briefing, mover, alerts, liquidity_html, social_html)
+                        onchain_html, ai_briefing, mover, alerts, liquidity_html, social_html,
+                        defi_html, pionex_html)
     text = render_text(cfg, rows, total, port_ch24, onchain_text, ai_briefing, mover, alerts,
-                        liquidity_text, social_text)
+                        liquidity_text, social_text, defi_text, pionex_text)
 
     subject = "{} - {} ({})".format(
         cfg.get("report_title", "Crypto porocilo"),
