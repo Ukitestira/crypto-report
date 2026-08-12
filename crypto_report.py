@@ -672,6 +672,8 @@ def main():
         watch_symbols = cfg.get("social_watchlist") or [h["symbol"] for h in holdings]
         try:
             social_html, social_text = build_social_section(watch_symbols)
+            if not social_html and social_text:
+                print("  ! social sentiment ni uspel:", social_text)
         except Exception as e:
             print("  ! social sentiment razdelek ni uspel:", e)
 
@@ -681,6 +683,8 @@ def main():
         print("Pridobivam DeFi rastni potencial (DefiLlama)...")
         try:
             defi_html, defi_text = build_defi_growth_section()
+            if not defi_html and defi_text:
+                print("  ! defi growth ni uspel:", defi_text)
         except Exception as e:
             print("  ! defi growth razdelek ni uspel:", e)
 
@@ -690,6 +694,8 @@ def main():
         print("Pridobivam Pionex grid bot stanje...")
         try:
             pionex_html, pionex_text = build_pionex_grid_section()
+            if not pionex_html and pionex_text:
+                print("  ! pionex grid ni uspel:", pionex_text)
         except Exception as e:
             print("  ! pionex grid razdelek ni uspel:", e)
 
