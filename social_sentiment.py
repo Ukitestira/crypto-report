@@ -25,7 +25,11 @@ import urllib.parse
 import urllib.request
 from datetime import datetime, timezone
 
-CP_BASE = "https://cryptopanic.com/api/v1/posts/"
+CP_BASE_CANDIDATES = [
+    "https://cryptopanic.com/api/v1/posts/",
+    "https://cryptopanic.com/api/developer/v2/posts/",
+    "https://cryptopanic.com/api/free/v2/posts/",
+]
 CRYPTOPANIC_API_KEY = os.environ.get("CRYPTOPANIC_API_KEY", "")
 STATE_DIR = os.environ.get("STATE_DIR", "state")
 STATE_PATH = os.path.join(STATE_DIR, "social_state.json")
@@ -45,7 +49,7 @@ def _get_json(url, timeout=20):
         return json.loads(r.read().decode("utf-8"))
 
 
-def _cp_get(symbols, page_url=None):
+def _cp_get(symbols, page_url=None, base_url=None):
     if page_url:
         return _get_json(page_url)
     params = {
@@ -54,7 +58,21 @@ def _cp_get(symbols, page_url=None):
         "currencies": ",".join(symbols),
         "kind": "news",
     }
-    return _get_json(CP_BASE + "?" + urllib.parse.urlencode(params))
+    query = "?" + urllib.parse.urlencode(params)
+    if base_url:
+        return _get_json(base_url + query)
+    # Poizkusi vse znane variante API-ja, dokler ena ne uspe (CryptoPanic je
+    # spreminjal strukturo URL-ja med v1 in v2/{plan}, plan pa je odvisen
+    # od nastavitev racuna in ga ne moremo vnaprej poznati).
+    last_err = None
+    for candidate in CP_BASE_CANDIDATES:
+        try:
+            data = _get_json(candidate + query)
+            return data, candidate
+        except Exception as e:
+            last_err = e
+            continue
+    raise last_err or RuntimeError("Noben CryptoPanic API endpoint ni deloval.")
 
 
 # ---------------------------------------------------------------------------
@@ -81,8 +99,13 @@ def fetch_posts(symbols):
         raise RuntimeError("CRYPTOPANIC_API_KEY ni nastavljen.")
     posts, seen = [], set()
     next_url = None
+    working_base = None
     for _ in range(MAX_PAGES):
-        data = _cp_get(symbols) if next_url is None else _cp_get(symbols, page_url=next_url)
+        if next_url is None:
+            result = _cp_get(symbols)
+            data, working_base = result
+        else:
+            data = _cp_get(symbols, page_url=next_url)
         for p in (data.get("results") or []):
             key = p.get("url") or p.get("id")
             if key in seen:
