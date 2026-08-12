@@ -8,7 +8,12 @@ on:
     # SLOVENSKEM CASU IN se DANES ni bilo poslano" - to ujame posiljanje ne glede na to,
     # kako pozno GitHub dejansko sprozi zagon, hkrati pa nikoli ne podvoji posiljanja.
     - cron: "*/30 3-11 * * *"
-  workflow_dispatch: {}   # omogoca rocni zagon iz zavihka Actions
+  workflow_dispatch:
+    inputs:
+      force:
+        description: "Prisilno poslji, tudi ce je bilo danes ze poslano (za testiranje)"
+        type: boolean
+        default: false
 
 permissions:
   contents: write          # potrebno za commit stanja (state/*.json)
@@ -26,7 +31,9 @@ jobs:
           TODAY=$(TZ=Europe/Ljubljana date +%F)
           LAST_SENT=$(python3 -c "import json;print(json.load(open('state/schedule_state.json')).get('last_sent_date',''))" 2>/dev/null || echo "")
           echo "Lokalni cas: ${HOUR}:xx, danasnji datum: $TODAY, nazadnje poslano: ${LAST_SENT:-(nikoli)}"
-          if [ "$HOUR" -lt 6 ]; then
+          if [ "${{ github.event.inputs.force }}" = "true" ]; then
+            echo "Rocni FORCE zagon - obidem varovalko urnika/podvojitve."
+          elif [ "$HOUR" -lt 6 ]; then
             echo "Se ni 06:00 po slovenskem casu - preskocim."
             echo "SKIP=true" >> "$GITHUB_ENV"
           elif [ "$LAST_SENT" = "$TODAY" ]; then
