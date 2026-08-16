@@ -70,16 +70,21 @@ def _pionex_get(path, query=None):
 
 
 def get_running_futures_grid(base="BTC", quote="USDT"):
-    data = _pionex_get("/api/v1/bot/orders", {
-        "status": "running",
-        "base": base,
-        "quote": quote,
-        "buOrderTypes": "futures_grid",
-    })
+    # Povlecemo vse tekoce bote brez ozkega API-side filtra (imena parametrov
+    # se lahko razlikujejo/spreminjajo) in filtriramo sami - bolj odporno.
+    data = _pionex_get("/api/v1/bot/orders", {"status": "running"})
     results = (data.get("data") or {}).get("results") or []
-    if not results:
-        return None
-    return results[0]
+    print("  (diag) najdenih tekocih botov skupaj: {}".format(len(results)))
+    for r in results:
+        print("  (diag) bot: type={} base={} quote={} status={}".format(
+            r.get("type"), r.get("base"), r.get("quote"), r.get("status")))
+    for r in results:
+        r_base = (r.get("base") or "").upper()
+        r_quote = (r.get("quote") or "").upper()
+        r_type = (r.get("type") or "").lower()
+        if base.upper() in r_base and quote.upper() in r_quote and "futures" in r_type:
+            return r
+    return None
 
 
 # ---------------------------------------------------------------------------
