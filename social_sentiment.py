@@ -33,7 +33,12 @@ CP_BASE_CANDIDATES = [
 CRYPTOPANIC_API_KEY = os.environ.get("CRYPTOPANIC_API_KEY", "")
 STATE_DIR = os.environ.get("STATE_DIR", "state")
 STATE_PATH = os.path.join(STATE_DIR, "social_state.json")
-UA = {"User-Agent": "morning-crypto-report/1.0"}
+UA = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 "
+                  "(KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36",
+    "Accept": "application/json, text/plain, */*",
+    "Accept-Language": "en-US,en;q=0.9",
+}
 
 STABLES = {"USDC", "USDT", "DAI", "BUSD"}
 MAX_PAGES = 3                 # koliko strani rezultatov max potegnemo (varcevanje s klici)
