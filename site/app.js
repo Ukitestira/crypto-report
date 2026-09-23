@@ -4,7 +4,9 @@
 
   var CG_BASE = "https://api.coingecko.com/api/v3";
   var BINANCE_BASES = ["https://api.binance.com", "https://data-api.binance.vision"];
-  var FNG_URL = "https://api.alternative.me/fng/?limit=1";
+  var FNG_URL = "https://api.alternative.me/fng/?limit=31";
+  var FAPI_BASE = "https://fapi.binance.com";
+  var OKX_BASE = "https://www.okx.com/api/v5";
   var AUTO_MS = 5 * 60 * 1000;
   var CG_CHART_LIMIT = 6; // najvec market_chart klicev (12h) na osvezitev - brezplacni CoinGecko je omejen
   var SETTINGS_KEY = "fomo-settings-v1";
@@ -152,16 +154,122 @@
         dom: g.market_cap_percentage.btc,
         mcap24: g.market_cap_change_percentage_24h_usd,
         vol: g.total_volume.usd,
+        stableDom: (g.market_cap_percentage.usdt || 0) + (g.market_cap_percentage.usdc || 0),
       };
     });
   }
 
   function fetchFng() {
     return getJson(FNG_URL).then(function (res) {
-      var d = res.data[0];
-      return { value: Number(d.value), label: d.value_classification };
+      var d = res.data;
+      var at = function (i) { return d[i] ? Number(d[i].value) : null; };
+      return { value: Number(d[0].value), label: d[0].value_classification, week: at(7), month: at(30) };
     });
   }
+
+  // ------------------------------------------------------------------ sentiment trga
+  // Vsak vir je neodvisen: ce eden ne odgovori, se indikator preprosto ne prikaze.
+  function fetchSentiment(glob, fng) {
+    var failed = [];
+    var soft = function (label) { return function () { failed.push(label); return null; }; };
+
+    var closesP = binanceGet("/api/v3/klines", { symbol: "BTCUSDT", interval: "1d", limit: 400 })
+      .then(function (k) { return k.map(function (c) { return Number(c[4]); }); })
+      .catch(soft("Binance (BTC dnevne cene)"));
+    var fundingP = getJson(FAPI_BASE + "/fapi/v1/premiumIndex?symbol=BTCUSDT")
+      .then(function (r) { return Fomo.num(r.lastFundingRate); })
+      .catch(function () {
+        return getJson(OKX_BASE + "/public/funding-rate?instId=BTC-USDT-SWAP")
+          .then(function (r) { return Fomo.num(r.data[0].fundingRate); });
+      })
+      .catch(soft("funding rate"));
+    var oiP = getJson(FAPI_BASE + "/futures/data/openInterestHist?symbol=BTCUSDT&period=1d&limit=30")
+      .then(function (a) {
+        var first = Number(a[0].sumOpenInterestValue), last = Number(a[a.length - 1].sumOpenInterestValue);
+        return first > 0 ? (last / first - 1) * 100 : null;
+      })
+      .catch(soft("open interest"));
+    var lsP = getJson(FAPI_BASE + "/futures/data/globalLongShortAccountRatio?symbol=BTCUSDT&period=1h&limit=1")
+      .then(function (a) { return Fomo.num(a[a.length - 1].longShortRatio); })
+      .catch(soft("long/short razmerje"));
+    var marketsP = cgGet("/coins/markets", {
+      vs_currency: "usd", order: "market_cap_desc", per_page: 100, page: 1, price_change_percentage: "7d,30d",
+    }).catch(soft("CoinGecko (top 100)"));
+
+    return Promise.all([closesP, fundingP, oiP, lsP, marketsP]).then(function (r) {
+      var markets = r[4];
+      if (!glob) failed.push("CoinGecko (dominanca)");
+      if (!fng) failed.push("Fear & Greed");
+      var res = Sentiment.evaluate({
+        fng: fng, closes: r[0], funding: r[1], oiChange30: r[2], lsRatio: r[3],
+        breadth7: markets ? Sentiment.breadth(markets, 100) : null,
+        altseason: markets ? Sentiment.altseason(markets) : null,
+        stableDom: glob ? glob.stableDom : null, btcDom: glob ? glob.dom : null,
+      });
+      res.failed = failed;
+      return res;
+    });
+  }
+
+  var LEVEL_ICON = { low: "\u2193", moderate: "\u2192", elevated: "\u2197", high: "\u2191", na: "\u00b7" };
+
+  function stateBadge(lv) {
+    return "<span class='st st-" + lv.key + "'><i aria-hidden='true'>" + LEVEL_ICON[lv.key] + "</i>" + esc(lv.label) + "</span>";
+  }
+
+  function meterHtml(score) {
+    var pin = score === null ? "" : "<i class='pin' style='left:" + Math.max(0, Math.min(100, score)).toFixed(1) + "%'></i>";
+    return "<div class='meter' role='img' aria-label='Tveganje " + (score === null ? "ni podatka" : Math.round(score) + " od 100") + "'>" +
+      "<span class='seg st-low' style='width:35%'></span><span class='seg st-moderate' style='width:20%'></span>" +
+      "<span class='seg st-elevated' style='width:15%'></span><span class='seg st-high' style='width:30%'></span>" + pin + "</div>" +
+      "<div class='meter-scale'><span>0</span><span style='left:35%'>35</span><span style='left:55%'>55</span><span style='left:70%'>70</span><span class='end'>100</span></div>";
+  }
+
+  function scoreTile(title, score, lv, big) {
+    return "<div class='risk-tile" + (big ? " big" : "") + "'>" +
+      "<div class='kpi-label'>" + title + "</div>" +
+      "<div class='risk-num'>" + (score === null ? "\u2013" : Math.round(score)) + "<small>/100</small> " + stateBadge(lv) + "</div>" +
+      (big ? meterHtml(score) : "<div class='mini-bar'><span class='st-" + lv.key + "' style='width:" + (score || 0).toFixed(0) + "%'></span></div>") +
+      "</div>";
+  }
+
+  function renderSentiment(res) {
+    if (!res || !res.items.length) {
+      $("sent-phase").hidden = true;
+      $("sent-body").innerHTML = "<div class='empty'>Podatki za sentiment niso dosegljivi \u2013 poskusi znova cez minuto.</div>";
+      return;
+    }
+    $("sent-phase").hidden = !res.phase;
+    $("sent-phase").textContent = res.phase ? "Faza: " + res.phase : "";
+    var groups = [
+      ["short", "Kratkorocno (dnevi\u2013tedni)"],
+      ["cycle", "Cikel (meseci)"],
+      ["context", "Kontekst"],
+    ];
+    var list = groups.map(function (g) {
+      var items = res.items.filter(function (i) { return i.group === g[0]; });
+      if (!items.length) return "";
+      return "<h3>" + g[1] + "</h3><div class='ind-list'>" + items.map(function (i) {
+        return "<div class='ind'>" +
+          "<div class='ind-name'>" + esc(i.name) + "</div>" +
+          "<div class='ind-val'>" + esc(i.value) + "</div>" +
+          "<div class='ind-state'>" + (i.risk === null ? "<span class='muted small'>informativno</span>" : stateBadge(i.level)) + "</div>" +
+          (i.risk === null ? "<div></div>" : "<div class='ind-bar'><span class='st-" + i.level.key + "' style='width:" + i.risk.toFixed(0) + "%'></span></div>") +
+          "<div class='ind-note'>" + esc(i.note) + "</div></div>";
+      }).join("") + "</div>";
+    }).join("");
+    $("sent-body").innerHTML =
+      "<div class='risk-grid'>" +
+        scoreTile("Tveganje popravka", res.score, res.level, true) +
+        "<div class='risk-sub'>" +
+          scoreTile("Kratkorocno", res.shortScore, res.shortLevel) +
+          scoreTile("Cikel", res.cycleScore, res.cycleLevel) +
+        "</div>" +
+      "</div>" +
+      "<p class='sent-summary'>" + esc(res.summary) + "</p>" + list +
+      (res.failed.length ? "<p class='muted small'>Ni podatka: " + esc(res.failed.join(", ")) + ".</p>" : "");
+  }
+
 
   // 24h potek cene iz CoinGecko (tocke na ~5 min) - iz njega izracunamo 12h in 4h ter narisemo graf.
   function cgSeries(id) {
@@ -633,6 +741,11 @@
     });
     var globP = portP.then(function () { return fetchGlobal(); }).catch(soft("CoinGecko (trg)"));
 
+    var sentP = Promise.all([globP, fngP])
+      .then(function (r) { return fetchSentiment(r[0], r[1]); })
+      .catch(soft("Sentiment"))
+      .then(function (res) { renderSentiment(res); });
+
     var huntP = Promise.all([binP, globP]).then(function (res) {
       var bin = res[0] || [];
       var skip = new Set(bin.map(function (r) { return r.symbol; }));
@@ -641,7 +754,7 @@
       });
     });
 
-    return Promise.all([portP, globP, fngP, huntP]).then(function (res) {
+    return Promise.all([portP, globP, fngP, huntP, sentP]).then(function (res) {
       var p = res[0], glob = res[1], fng = res[2], hunt = res[3];
       var own = new Set(p ? p.rows.map(function (r) { return r.symbol; }) : []);
 

@@ -155,6 +155,27 @@ Lovi kovance, ki **hkrati** izpolnjujejo vse tri pogoje rasti:
 
 Vse teče v brskalniku, zato so podatki vedno sveži – strežnik ni potreben.
 
+### Sentiment trga in tveganje popravka
+Razdelek **Sentiment trga** zbere običajne kazalnike in vsakemu da oceno tveganja za popravek 0–100
+(0 = nizko, 100 = zelo visoko). Skupna ocena je povprečje, ločeno na **kratkoročni** del (dnevi–tedni)
+in **cikel** (meseci). Stopnje: < 35 nizko, 35–55 zmerno, 55–70 povišano, ≥ 70 visoko.
+
+| Kazalnik | Vir | Kaj pove |
+|---|---|---|
+| Fear & Greed | Alternative.me | razpoloženje (pohlep = večje tveganje) |
+| Funding rate BTC | Binance Futures (rezerva OKX) | koliko plačujejo dolge pozicije z vzvodom |
+| Open interest BTC (30 dni) | Binance Futures | rast vzvoda v sistemu |
+| Long/short razmerje | Binance Futures | pozicije malih vlagateljev (kontrarijansko) |
+| RSI(14) BTC | Binance (dnevne sveče) | prekupljenost / preprodanost |
+| Širina trga | CoinGecko top 100 | delež kovancev v plusu v 7 dneh |
+| Mayer multiple | Binance | BTC glede na 200-dnevno povprečje (faza trga) |
+| Pi Cycle Top | Binance | klasičen signal vrha cikla |
+| Altseason indeks | CoinGecko | delež top 50 altcoinov, ki so v 30 dneh premagali BTC |
+| Dominanca stabilnih kovancev | CoinGecko | koliko denarja čaka ob strani |
+| BTC dominanca | CoinGecko | samo kontekst (ne vpliva na oceno) |
+
+Pragovi so v `site/sentiment.js`. Ocena je informativna in ni napoved.
+
 ### Objava (GitHub Pages, enkratno)
 1. **Settings → Pages → Build and deployment → Source: GitHub Actions**.
 2. **Actions → "Spletna stran (GitHub Pages)" → Run workflow** (nato se sama objavi ob vsaki
@@ -169,5 +190,5 @@ Vse teče v brskalniku, zato so podatki vedno sveži – strežnik ni potreben.
 ```bash
 python3 -m http.server 8000     # v korenu repozitorija
 # odpri http://localhost:8000/site/
-node --test site/fomo.test.js  # testi FOMO logike
+node --test site/fomo.test.js site/sentiment.test.js  # testi
 ```

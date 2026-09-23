@@ -32,12 +32,12 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Testi FOMO logike
-        run: node --test site/fomo.test.js
+        run: node --test site/fomo.test.js site/sentiment.test.js
 
       - name: Pripravi stran
         run: |
           mkdir -p _site
-          cp site/index.html site/style.css site/app.js site/fomo.js _site/
+          cp site/index.html site/style.css site/app.js site/fomo.js site/sentiment.js _site/
           cp config.json _site/config.json
 
       - uses: actions/configure-pages@v5

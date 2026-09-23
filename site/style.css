@@ -18,6 +18,11 @@
   --mover-line: #ffd6d6;
   --mover-text: #5a1a1a;
   --chip-off: #e5e7eb;
+  /* stanja tveganja (rezervirano: samo za oceno tveganja, vedno z ikono in oznako) */
+  --st-low: #2f9e44;
+  --st-moderate: #d4a017;
+  --st-elevated: #e8590c;
+  --st-high: #c92a2a;
 }
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
@@ -40,6 +45,10 @@
     --mover-line: #4d2527;
     --mover-text: #f3c9c9;
     --chip-off: #2b3038;
+    --st-low: #51cf66;
+    --st-moderate: #fcc419;
+    --st-elevated: #ff922b;
+    --st-high: #ff6b6b;
   }
 }
 :root[data-theme="dark"] {
@@ -47,6 +56,7 @@
   --pos: #4cc26a; --neg: #ff6b5e; --accent: #ff8a3d; --accent-soft: #2a1d13; --accent-line: #5a3317;
   --note-bg: #16233a; --note-text: #c8d6ea; --warn-bg: #2b2412; --warn-text: #f1d99a;
   --mover-bg: #2a1718; --mover-line: #4d2527; --mover-text: #f3c9c9; --chip-off: #2b3038;
+  --st-low: #51cf66; --st-moderate: #fcc419; --st-elevated: #ff922b; --st-high: #ff6b6b;
 }
 
 * { box-sizing: border-box; }
@@ -155,6 +165,48 @@ code { font-size: 12px; }
   box-shadow: 0 2px 8px rgba(0, 0, 0, .12); white-space: nowrap; font-variant-numeric: tabular-nums;
 }
 
+/* sentiment */
+.st-low { --st: var(--st-low); }
+.st-moderate { --st: var(--st-moderate); }
+.st-elevated { --st: var(--st-elevated); }
+.st-high { --st: var(--st-high); }
+.st-na { --st: var(--muted); }
+.st { display: inline-flex; align-items: center; gap: 5px; font-size: 12px; font-weight: 600; color: var(--text); white-space: nowrap; }
+.st i {
+  font-style: normal; display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 50%;
+  background: var(--st); color: var(--card); font-size: 11px; font-weight: 700;
+}
+.risk-grid { display: grid; grid-template-columns: 3fr 2fr; gap: 12px; margin: 12px 0 4px; }
+.risk-sub { display: grid; gap: 12px; }
+.risk-tile { background: var(--head); border-radius: 10px; padding: 12px 14px; }
+.risk-num { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+.risk-num small { font-size: 13px; color: var(--muted); font-weight: 600; margin-left: -8px; }
+.risk-tile.big .risk-num { font-size: 34px; }
+.meter { position: relative; display: flex; gap: 2px; height: 10px; margin: 12px 0 4px; }
+.meter .seg { background: var(--st); opacity: .85; }
+.meter .seg:first-child { border-radius: 4px 0 0 4px; }
+.meter .seg:nth-child(4) { border-radius: 0 4px 4px 0; }
+.meter .pin {
+  position: absolute; top: -5px; width: 4px; height: 20px; margin-left: -2px; border-radius: 2px;
+  background: var(--text); box-shadow: 0 0 0 2px var(--head);
+}
+.meter-scale { position: relative; height: 14px; font-size: 11px; color: var(--muted); font-variant-numeric: tabular-nums; }
+.meter-scale span { position: absolute; transform: translateX(-50%); }
+.meter-scale span:first-child { transform: none; left: 0; }
+.meter-scale span.end { right: 0; transform: none; }
+.mini-bar, .ind-bar { height: 6px; background: var(--line); border-radius: 3px; overflow: hidden; margin-top: 8px; }
+.mini-bar span, .ind-bar span { display: block; height: 100%; background: var(--st); border-radius: 3px; }
+.sent-summary { margin: 12px 0 0; font-weight: 600; }
+.ind-list { display: grid; }
+.ind {
+  display: grid; grid-template-columns: minmax(0, 2.2fr) minmax(0, 1.6fr) 110px 90px; gap: 2px 14px;
+  align-items: center; padding: 10px 0; border-top: 1px solid var(--line);
+}
+.ind-name { font-weight: 600; font-size: 14px; }
+.ind-val { font-variant-numeric: tabular-nums; font-size: 14px; }
+.ind-bar { margin-top: 0; }
+.ind-note { grid-column: 1 / -1; color: var(--muted); font-size: 13px; }
+
 .empty { padding: 14px; border-radius: 8px; background: var(--head); color: var(--muted); font-size: 14px; }
 
 .mover { margin-top: 16px; padding: 14px 16px; background: var(--mover-bg); border: 1px solid var(--mover-line); border-radius: 8px; color: var(--mover-text); }
@@ -184,4 +236,8 @@ dialog input[type=number], dialog input[type=text] {
   .kpi { font-size: 26px; }
   .card { padding: 16px; }
   .grid4 { grid-template-columns: repeat(2, 1fr); }
+  .risk-grid { grid-template-columns: 1fr; }
+  .ind { grid-template-columns: minmax(0, 1fr) auto; }
+  .ind-name, .ind-bar { grid-column: 1 / -1; }
+  .ind-state { justify-self: end; }
 }
