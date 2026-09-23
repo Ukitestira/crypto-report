@@ -56,6 +56,19 @@
     </div>
   </section>
 
+  <!-- ===================== SENTIMENT ===================== -->
+  <section class="card" id="sent-card">
+    <div class="card-head">
+      <h2>&#128202; Sentiment trga</h2>
+      <span class="chip" id="sent-phase" hidden></span>
+    </div>
+    <p class="muted small">
+      Obicajni kazalniki razpolozenja, vzvoda in faze cikla. Vsak dobi oceno tveganja za popravek 0&ndash;100;
+      skupna ocena je njihovo povprecje. Informativno, ne napoved.
+    </p>
+    <div id="sent-body"><div class="empty">Nalagam &hellip;</div></div>
+  </section>
+
   <!-- ===================== PORTFELJ ===================== -->
   <section class="card">
     <div class="kpi-label">Vrednost portfelja</div>
@@ -83,7 +96,7 @@
   <div id="missing"></div>
   <div id="errors"></div>
 
-  <p class="foot">Informativno, ne financni nasvet. Podatki: CoinGecko, Binance, Alternative.me. Portfelj iz <code>config.json</code>.</p>
+  <p class="foot">Informativno, ne financni nasvet. Podatki: CoinGecko, Binance, OKX, Alternative.me. Portfelj iz <code>config.json</code>.</p>
 </div>
 
 <!-- ===================== NASTAVITVE ===================== -->
@@ -110,6 +123,7 @@
 </dialog>
 
 <script src="fomo.js"></script>
+<script src="sentiment.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
