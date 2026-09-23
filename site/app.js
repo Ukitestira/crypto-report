@@ -12,6 +12,7 @@
   var DEFAULTS = {
     h24: Fomo.DEFAULT_THRESHOLDS.h24,
     h12: Fomo.DEFAULT_THRESHOLDS.h12,
+    h4: Fomo.DEFAULT_THRESHOLDS.h4,
     h1: Fomo.DEFAULT_THRESHOLDS.h1,
     minVol: 100000,
     cgKey: "",
@@ -24,6 +25,8 @@
   var lastFomoKeys = null;
   var autoTimer = null;
   var busy = false;
+  var shownRows = {};      // kljuc -> vrstica, prikazana v FOMO/radar tabeli (za grafe)
+  var expanded = new Set(); // kljuci vrstic z odprtim velikim grafom
 
   // ------------------------------------------------------------------ nastavitve
   function loadSettings() {
@@ -38,7 +41,9 @@
     try { localStorage.setItem(SETTINGS_KEY, JSON.stringify(settings)); } catch (e) { /* ignoriraj */ }
   }
   function thresholds() {
-    return { h24: Number(settings.h24), h12: Number(settings.h12), h1: Number(settings.h1) };
+    var th = {};
+    Fomo.WINDOWS.forEach(function (k) { th[k] = Number(settings[k]); });
+    return th;
   }
 
   // ------------------------------------------------------------------ oblikovanje
@@ -158,12 +163,29 @@
     });
   }
 
-  function cg12h(id) {
+  // 24h potek cene iz CoinGecko (tocke na ~5 min) - iz njega izracunamo 12h in 4h ter narisemo graf.
+  function cgSeries(id) {
     return cgGet("/coins/" + encodeURIComponent(id) + "/market_chart", { vs_currency: "usd", days: 1 })
-      .then(function (res) { return Fomo.changeFromSeries(res.prices, 12); });
+      .then(function (res) { return res.prices; });
+  }
+  function applySeries(r, prices) {
+    r.series = prices;
+    r.h12 = Fomo.changeFromSeries(prices, 12);
+    r.h4 = Fomo.changeFromSeries(prices, 4);
   }
 
-  // Binance: vsi USDT pari -> top kandidati po 24h rasti -> 12h in 1h drsno okno.
+  // 24h potek cene iz Binance (15-min svece).
+  function binanceSeries(pair) {
+    return binanceGet("/api/v3/klines", { symbol: pair, interval: "15m", limit: 97 }).then(function (k) {
+      if (!k.length) return [];
+      var pts = k.map(function (c) { return [c[0], Number(c[1])]; });
+      var last = k[k.length - 1];
+      pts.push([Math.min(last[6], Date.now()), Number(last[4])]);
+      return pts;
+    });
+  }
+
+  // Binance: vsi USDT pari -> top kandidati po 24h rasti -> 12h, 4h in 1h drsno okno.
   function scanBinance(th) {
     return binanceGet("/api/v3/ticker/24hr").then(function (tickers) {
       var cands = Fomo.binanceCandidates(tickers, { minQuoteVolume: Number(settings.minVol) || 0, minCh24: 0, limit: 200 });
@@ -171,12 +193,12 @@
       cands.forEach(function (c) { byPair[c.pair] = c; });
       var jobs = [];
       Fomo.chunk(cands.map(function (c) { return c.pair; }), 100).forEach(function (pairs) {
-        ["12h", "1h"].forEach(function (win) {
+        ["12h", "4h", "1h"].forEach(function (win) {
           jobs.push(binanceGet("/api/v3/ticker", { symbols: JSON.stringify(pairs), windowSize: win })
             .then(function (rows) {
               rows.forEach(function (r) {
                 var c = byPair[r.symbol];
-                if (c) c[win === "12h" ? "h12" : "h1"] = Fomo.num(r.priceChangePercent);
+                if (c) c["h" + win.slice(0, -1)] = Fomo.num(r.priceChangePercent);
               });
             }));
         });
@@ -184,8 +206,9 @@
       return Promise.all(jobs).then(function () {
         return cands.map(function (c) {
           return {
-            symbol: c.base, name: "", price: c.price, volume: c.volume,
-            h24: c.h24, h12: c.h12 === undefined ? null : c.h12, h1: c.h1 === undefined ? null : c.h1,
+            symbol: c.base, pair: c.pair, name: "", price: c.price, volume: c.volume,
+            h24: c.h24, h12: c.h12 === undefined ? null : c.h12,
+            h4: c.h4 === undefined ? null : c.h4, h1: c.h1 === undefined ? null : c.h1,
             source: "Binance", url: "https://www.binance.com/en/trade/" + c.base + "_USDT",
           };
         });
@@ -193,7 +216,7 @@
     });
   }
 
-  // CoinGecko: top 250 po volumnu (ujame tudi kovance, ki jih ni na Binance). 12h samo za mocne kandidate.
+  // CoinGecko: top 250 po volumnu (ujame tudi kovance, ki jih ni na Binance). 12h/4h samo za mocne kandidate.
   function scanCoinGecko(th, skipSymbols) {
     return cgGet("/coins/markets", {
       vs_currency: "usd", order: "volume_desc", per_page: 250, page: 1, price_change_percentage: "1h,24h",
@@ -208,14 +231,14 @@
         if (!(h24 >= th.h24 || h1 >= th.h1)) return;
         out.push({
           id: r.id, symbol: sym, name: r.name, price: r.current_price, volume: r.total_volume,
-          h24: h24, h12: null, h1: h1, source: "CoinGecko", url: "https://www.coingecko.com/en/coins/" + r.id,
+          h24: h24, h12: null, h4: null, h1: h1, source: "CoinGecko", url: "https://www.coingecko.com/en/coins/" + r.id,
         });
       });
       var need = out.filter(function (r) { return r.h24 >= th.h24 && r.h1 >= th.h1; })
         .sort(function (a, b) { return Fomo.score(b, th) - Fomo.score(a, th); })
         .slice(0, CG_CHART_LIMIT);
       return Promise.all(need.map(function (r) {
-        return cg12h(r.id).then(function (v) { r.h12 = v; }).catch(function () {});
+        return cgSeries(r.id).then(function (p) { applySeries(r, p); }).catch(function () {});
       })).then(function () { return out; });
     });
   }
@@ -233,7 +256,7 @@
       prev += ch24 !== null ? value / (1 + ch24 / 100) : value;
       rows.push({
         symbol: h.symbol, id: h.id, amount: h.amount, price: price, value: value,
-        h1: Fomo.num(m.price_change_percentage_1h_in_currency), h24: ch24, h12: null,
+        h1: Fomo.num(m.price_change_percentage_1h_in_currency), h24: ch24, h12: null, h4: null,
         d7: Fomo.num(m.price_change_percentage_7d_in_currency),
         target: h.target_price || null,
         pctToTarget: h.target_price ? (h.target_price - price) / price * 100 : null,
@@ -267,24 +290,29 @@
 
   // ------------------------------------------------------------------ izris
   function renderChips(th) {
-    $("th-chips").innerHTML =
-      "<span class='chip'>24h ≥ " + th.h24 + "%</span>" +
-      "<span class='chip'>12h ≥ " + th.h12 + "%</span>" +
-      "<span class='chip'>1h ≥ " + th.h1 + "%</span>";
+    $("th-chips").innerHTML = Fomo.WINDOWS.map(function (k) {
+      return "<span class='chip'>" + Fomo.WINDOW_HOURS[k] + "h \u2265 " + th[k] + "%</span>";
+    }).join("");
   }
 
   function pctCell(v, hit) {
     return "<td class='" + (hit ? "hit" : pctCls(v)) + "'>" + fmtPct(v) + "</td>";
   }
 
+  function rowKey(r) { return r.source + ":" + r.symbol; }
+
   function fomoRowHtml(r, ownSymbols) {
+    var key = rowKey(r);
     var sym = "<a href='" + esc(r.url) + "' target='_blank' rel='noopener'>" + esc(r.symbol) + "</a>";
     if (r.name) sym += " <span class='muted small'>" + esc(r.name) + "</span>";
     if (ownSymbols.has(r.symbol)) sym += "<span class='badge own'>v portfelju</span>";
-    if (r.pending12h) sym += "<span class='badge' title='12h podatek ni bil pridobljen'>12h ?</span>";
-    return "<tr><td class='l sym'>" + sym + "</td>" +
+    if (r.pending) sym += "<span class='badge' title='Podatek za 12h/4h ni bil pridobljen'>12h/4h ?</span>";
+    return "<tr class='fomo-row' data-key='" + esc(key) + "' tabindex='0' title='Klikni za vecji graf'>" +
+      "<td class='l sym'>" + sym + "</td>" +
       "<td>" + fmtMoney(r.price) + "</td>" +
-      pctCell(r.h1, r.checks.h1) + pctCell(r.h12, r.checks.h12) + pctCell(r.h24, r.checks.h24) +
+      pctCell(r.h1, r.checks.h1) + pctCell(r.h4, r.checks.h4) +
+      pctCell(r.h12, r.checks.h12) + pctCell(r.h24, r.checks.h24) +
+      "<td class='chart-cell' data-spark='" + esc(key) + "'><span class='muted small'>\u2026</span></td>" +
       "<td>" + fmtBig(r.volume) + "</td>" +
       "<td class='l muted small'>" + esc(r.source) + "</td></tr>";
   }
@@ -292,7 +320,7 @@
   function renderFomo(result, ownSymbols, scanned) {
     var f = result.fomo, rad = result.radar.slice(0, 25);
     $("fomo-empty").textContent = scanned
-      ? "Trenutno noben kovanec ne izpolnjuje vseh treh pogojev."
+      ? "Trenutno noben kovanec ne izpolnjuje vseh stirih pogojev."
       : "Lov ni uspel \u2013 Binance in CoinGecko nista odgovorila. Poskusi znova cez minuto.";
     $("fomo-empty").hidden = f.length > 0;
     $("fomo-wrap").hidden = f.length === 0;
@@ -301,7 +329,191 @@
     $("radar-wrap").hidden = rad.length === 0;
     $("radar-table").tBodies[0].innerHTML = rad.map(function (r) { return fomoRowHtml(r, ownSymbols); }).join("");
     document.title = (f.length ? "(" + f.length + ") " : "") + "Crypto FOMO pregled";
+
+    shownRows = {};
+    f.concat(rad).forEach(function (r) { shownRows[rowKey(r)] = r; });
+    loadCharts(f.concat(rad));
   }
+
+  // ------------------------------------------------------------------ grafi
+  // Nalozi 24h potek za vsak prikazan kovanec (Binance svece; CoinGecko potek je ze nalozen, ce je bil potreben).
+  function loadCharts(rows) {
+    rows.forEach(function (r) {
+      var done = function () {
+        r.fit = Fomo.parabolaFit(r.series);
+        drawSpark(r);
+        if (expanded.has(rowKey(r))) openDetail(rowKey(r));
+      };
+      if (r.series) return done();
+      var p = r.pair ? binanceSeries(r.pair) : r.id ? cgSeries(r.id) : null;
+      if (!p) return drawSpark(r);
+      p.then(function (pts) { r.series = pts; }).catch(function () { r.series = null; }).then(done);
+    });
+  }
+
+  function cellFor(key) {
+    var cells = document.querySelectorAll("td[data-spark]");
+    for (var i = 0; i < cells.length; i++) if (cells[i].getAttribute("data-spark") === key) return cells[i];
+    return null;
+  }
+
+  function fitLabel(fit) {
+    if (!fit) return "<span class='muted small' title='Cena v 24h ni zrasla'>\u2013</span>";
+    var pct = Math.round(fit.match * 100);
+    return "<span class='" + (fit.match >= 0.8 ? "para-good" : "muted") + " small' title='Ujemanje poteka cene z idealno parabolo'>" + pct + "%</span>";
+  }
+
+  function drawSpark(r) {
+    var cell = cellFor(rowKey(r));
+    if (!cell) return;
+    if (!r.series || r.series.length < 5) { cell.innerHTML = "<span class='muted small'>ni podatkov</span>"; return; }
+    cell.innerHTML = "<span class='spark'>" + chartSvg(r, { w: 120, h: 34, pad: 2 }) + fitLabel(r.fit) + "</span>";
+  }
+
+  // Skupni izris (majhen in velik graf). Os y = sprememba v % glede na zacetek 24h obdobja.
+  function chartSvg(r, o) {
+    var pts = r.series, t0 = pts[0][0], t1 = pts[pts.length - 1][0], base = pts[0][1];
+    var pct = function (p) { return (p / base - 1) * 100; };
+    var ys = pts.map(function (p) { return pct(p[1]); });
+    var lo = Math.min(0, Math.min.apply(null, ys)), hi = Math.max.apply(null, ys);
+    if (hi - lo < 1) hi = lo + 1;
+    var ml = o.ml || o.pad, mr = o.mr || o.pad, mt = o.mt || o.pad, mb = o.mb || o.pad;
+    var X = function (t) { return ml + (t - t0) / (t1 - t0 || 1) * (o.w - ml - mr); };
+    var Y = function (v) { return mt + (hi - v) / (hi - lo) * (o.h - mt - mb); };
+    var path = function (arr) {
+      return arr.map(function (p, i) { return (i ? "L" : "M") + X(p[0]).toFixed(1) + " " + Y(p[1]).toFixed(1); }).join("");
+    };
+    var out = "<svg class='chart' viewBox='0 0 " + o.w + " " + o.h + "' width='" + (o.full ? "100%" : o.w) + "'" +
+      (o.full ? "" : " height='" + o.h + "'") + " role='img' aria-label='24h potek cene " + esc(r.symbol) + "'>";
+
+    if (o.full) {
+      // mreza + oznake osi y
+      ticks(lo, hi).forEach(function (v) {
+        out += "<line class='grid" + (v === 0 ? " zero" : "") + "' x1='" + ml + "' x2='" + (o.w - mr) + "' y1='" + Y(v) + "' y2='" + Y(v) + "'/>" +
+          "<text class='axis' x='" + (ml - 6) + "' y='" + (Y(v) + 4) + "' text-anchor='end'>" + (v > 0 ? "+" : "") + v + "%</text>";
+      });
+    }
+    if (r.fit) {
+      var ideal = [];
+      for (var i = 0; i <= 40; i++) { var t = t0 + (t1 - t0) * i / 40; ideal.push([t, pct(r.fit.ideal(t))]); }
+      out += "<path class='ideal' d='" + path(ideal) + "'/>";
+    }
+    out += "<path class='price' d='" + path(pts.map(function (p) { return [p[0], pct(p[1])]; })) + "'/>";
+
+    if (o.full) {
+      // oznake zacetkov oken (-24h, -12h, -4h, -1h): polna pika = pogoj izpolnjen
+      var checks = Fomo.checks(r, thresholds());
+      Fomo.WINDOWS.forEach(function (k) {
+        var t = t1 - Fomo.WINDOW_HOURS[k] * 3600e3;
+        if (t < t0 - 20 * 60e3) return;
+        t = Math.max(t, t0);
+        var near = pts.reduce(function (a, b) { return Math.abs(b[0] - t) < Math.abs(a[0] - t) ? b : a; });
+        var x = X(t), y = Y(pct(near[1]));
+        out += "<line class='mark' x1='" + x + "' x2='" + x + "' y1='" + mt + "' y2='" + (o.h - mb) + "'/>" +
+          "<text class='axis' x='" + x + "' y='" + (o.h - 8) + "' text-anchor='middle'>\u2212" + Fomo.WINDOW_HOURS[k] + "h</text>" +
+          "<circle class='dot" + (checks[k] ? " ok" : "") + "' cx='" + x + "' cy='" + y + "' r='5'><title>" +
+          Fomo.WINDOW_HOURS[k] + "h: " + fmtPct(r[k]) + (checks[k] ? " (pogoj izpolnjen)" : " (pod pragom)") + "</title></circle>";
+      });
+      out += "<line class='cross' x1='0' x2='0' y1='" + mt + "' y2='" + (o.h - mb) + "' visibility='hidden'/>" +
+        "<circle class='cross-dot' r='4' visibility='hidden'/>" +
+        "<rect class='hit-area' x='" + ml + "' y='" + mt + "' width='" + (o.w - ml - mr) + "' height='" + (o.h - mt - mb) + "'/>";
+    }
+    return out + "</svg>";
+  }
+
+  function ticks(lo, hi) {
+    var span = hi - lo, raw = span / 4, mag = Math.pow(10, Math.floor(Math.log10(raw)));
+    var step = [1, 2, 5, 10].map(function (m) { return m * mag; }).find(function (s2) { return s2 >= raw; });
+    var out = [];
+    for (var v = Math.ceil(lo / step) * step; v <= hi + 1e-9; v += step) out.push(Math.round(v * 100) / 100);
+    return out;
+  }
+
+  function openDetail(key) {
+    var r = shownRows[key];
+    var tr = document.querySelector("tr.fomo-row[data-key='" + key.replace(/'/g, "\\'") + "']");
+    if (!r || !tr) return;
+    var next = tr.nextElementSibling;
+    if (next && next.classList.contains("detail-row")) next.remove();
+    var td = document.createElement("td");
+    td.colSpan = tr.children.length;
+    if (!r.series || r.series.length < 5) {
+      td.innerHTML = "<div class='detail muted'>Graf se nalaga ali ni na voljo.</div>";
+    } else {
+      var fit = r.fit;
+      var verdict = !fit ? "Cena v zadnjih 24h ni zrasla."
+        : fit.match >= 0.8 ? "Rast se lepo pospesuje \u2013 potek je <b>blizu parabole</b>."
+        : fit.match >= 0.5 ? "Rast je bolj enakomerna kot parabolicna."
+        : "Potek ni parabolicen (npr. en sam skok ali nihanje).";
+      td.innerHTML = "<div class='detail'>" +
+        "<div class='detail-head'><b>" + esc(r.symbol) + "</b> &middot; 24h potek" +
+        (fit ? " &middot; ujemanje s parabolo: <b class='" + (fit.match >= 0.8 ? "para-good" : "") + "'>" + Math.round(fit.match * 100) + "%</b>" : "") +
+        "<span class='legend'><i class='lg-price'></i>cena <i class='lg-ideal'></i>idealna parabola <i class='lg-dot'></i>pogoj izpolnjen</span></div>" +
+        "<div class='chart-wrap'>" + chartSvg(r, { w: 640, h: 220, full: true, ml: 48, mr: 12, mt: 12, mb: 28 }) +
+        "<div class='tip' hidden></div></div>" +
+        "<div class='muted small'>" + verdict + "</div></div>";
+      bindHover(td.querySelector(".chart-wrap"), r, { w: 640, ml: 48, mr: 12 });
+    }
+    var row = document.createElement("tr");
+    row.className = "detail-row";
+    row.appendChild(td);
+    tr.after(row);
+  }
+
+  // Crosshair + tooltip na velikem grafu.
+  function bindHover(wrap, r, o) {
+    var svg = wrap.querySelector("svg"), tip = wrap.querySelector(".tip");
+    var cross = svg.querySelector(".cross"), dot = svg.querySelector(".cross-dot");
+    var pts = r.series, t0 = pts[0][0], t1 = pts[pts.length - 1][0], base = pts[0][1];
+    var price = svg.querySelector(".price");
+    function move(ev) {
+      var box = svg.getBoundingClientRect();
+      var sx = (ev.clientX - box.left) / box.width * o.w;
+      var t = t0 + (sx - o.ml) / (o.w - o.ml - o.mr) * (t1 - t0);
+      var i = 0, best = Infinity;
+      pts.forEach(function (p, j) { var d = Math.abs(p[0] - t); if (d < best) { best = d; i = j; } });
+      var seg = price.getAttribute("d").split(/[ML]/).filter(Boolean)[i].split(" ");
+      var x = Number(seg[0]), y = Number(seg[1]);
+      cross.setAttribute("x1", x); cross.setAttribute("x2", x); cross.setAttribute("visibility", "visible");
+      dot.setAttribute("cx", x); dot.setAttribute("cy", y); dot.setAttribute("visibility", "visible");
+      var ago = (t1 - pts[i][0]) / 3600e3;
+      tip.innerHTML = "<b>" + fmtMoney(pts[i][1]) + "</b> <span class='" + pctCls(pts[i][1] - base) + "'>" +
+        fmtPct((pts[i][1] / base - 1) * 100) + "</span><br><span class='muted'>" +
+        (ago < 0.05 ? "zdaj" : "pred " + ago.toFixed(1).replace(".", ",") + " h") + "</span>";
+      tip.hidden = false;
+      var px = x / o.w * box.width;
+      tip.style.left = Math.min(Math.max(px + 10, 0), box.width - tip.offsetWidth) + "px";
+      tip.style.top = Math.max(y / 220 * box.height - 50, 0) + "px";
+    }
+    function leave() {
+      tip.hidden = true;
+      cross.setAttribute("visibility", "hidden");
+      dot.setAttribute("visibility", "hidden");
+    }
+    svg.addEventListener("pointermove", move);
+    svg.addEventListener("pointerleave", leave);
+  }
+
+  function toggleRow(tr) {
+    var key = tr.getAttribute("data-key");
+    var next = tr.nextElementSibling;
+    if (next && next.classList.contains("detail-row")) { next.remove(); expanded.delete(key); return; }
+    expanded.add(key);
+    openDetail(key);
+  }
+
+  ["fomo-table", "radar-table"].forEach(function (id) {
+    var tb = $(id).tBodies[0];
+    tb.addEventListener("click", function (e) {
+      if (e.target.closest("a")) return;
+      var tr = e.target.closest("tr.fomo-row");
+      if (tr) toggleRow(tr);
+    });
+    tb.addEventListener("keydown", function (e) {
+      var tr = e.target.closest("tr.fomo-row");
+      if (tr && (e.key === "Enter" || e.key === " ")) { e.preventDefault(); toggleRow(tr); }
+    });
+  });
 
   function renderPortfolio(p, glob, fng, th) {
     $("total").textContent = fmtMoney(p.total);
@@ -379,7 +591,7 @@
     if (!fresh.length || !settings.notify || !("Notification" in window) || Notification.permission !== "granted") return;
     try {
       new Notification("FOMO: " + fresh.map(function (r) { return r.symbol; }).join(", "), {
-        body: fresh.map(function (r) { return r.symbol + " 1h " + fmtPct(r.h1) + " · 12h " + fmtPct(r.h12) + " · 24h " + fmtPct(r.h24); }).join("\n"),
+        body: fresh.map(function (r) { return r.symbol + " 1h " + fmtPct(r.h1) + " · 4h " + fmtPct(r.h4) + " · 12h " + fmtPct(r.h12) + " · 24h " + fmtPct(r.h24); }).join("\n"),
       });
     } catch (e) { /* nekateri brskalniki (mobilni) ne podpirajo */ }
   }
@@ -433,7 +645,7 @@
       var p = res[0], glob = res[1], fng = res[2], hunt = res[3];
       var own = new Set(p ? p.rows.map(function (r) { return r.symbol; }) : []);
 
-      // 12h za lastne kovance, ki izpolnijo 24h in 1h pogoj (preostanek limita CoinGecko klicev).
+      // 12h/4h za lastne kovance, ki izpolnijo 24h in 1h pogoj (Binance, sicer CoinGecko potek).
       var ownFill = Promise.resolve();
       if (p) {
         var bySym = {};
@@ -441,11 +653,12 @@
         var need = [];
         p.rows.forEach(function (r) {
           if (!(r.h24 !== null && r.h1 !== null && r.h24 >= th.h24 && r.h1 >= th.h1)) return;
-          if (bySym[r.symbol] && bySym[r.symbol].h12 !== null) r.h12 = bySym[r.symbol].h12;
+          var b = bySym[r.symbol];
+          if (b && b.h12 !== null && b.h4 !== null) { r.h12 = b.h12; r.h4 = b.h4; }
           else need.push(r);
         });
         ownFill = Promise.all(need.slice(0, CG_CHART_LIMIT).map(function (r) {
-          return cg12h(r.id).then(function (v) { r.h12 = v; }).catch(function () {});
+          return cgSeries(r.id).then(function (pts) { applySeries(r, pts); }).catch(function () {});
         }));
       }
 
@@ -480,18 +693,16 @@
   // ------------------------------------------------------------------ nastavitve (dialog)
   var dlg = $("settings"), form = $("settings-form");
   function fillForm(s) {
-    form.h24.value = s.h24; form.h12.value = s.h12; form.h1.value = s.h1;
+    Fomo.WINDOWS.forEach(function (k) { form[k].value = s[k]; });
     form.minVol.value = s.minVol; form.cgKey.value = s.cgKey || ""; form.notify.checked = !!s.notify;
   }
   $("btn-settings").addEventListener("click", function () { fillForm(settings); dlg.showModal(); });
   $("btn-reset").addEventListener("click", function () {
-    fillForm(Object.assign({}, settings, { h24: DEFAULTS.h24, h12: DEFAULTS.h12, h1: DEFAULTS.h1, minVol: DEFAULTS.minVol }));
+    fillForm(Object.assign({}, settings, Fomo.DEFAULT_THRESHOLDS, { minVol: DEFAULTS.minVol }));
   });
   dlg.addEventListener("close", function () {
     if (dlg.returnValue !== "save") return;
-    settings.h24 = Number(form.h24.value);
-    settings.h12 = Number(form.h12.value);
-    settings.h1 = Number(form.h1.value);
+    Fomo.WINDOWS.forEach(function (k) { settings[k] = Number(form[k].value); });
     settings.minVol = Number(form.minVol.value) || 0;
     settings.cgKey = form.cgKey.value.trim();
     settings.notify = form.notify.checked;
