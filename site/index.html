@@ -29,26 +29,27 @@
       <div class="chips" id="th-chips"></div>
     </div>
     <p class="muted small">
-      Lovi kovance, ki hkrati izpolnjujejo vse tri pogoje rasti. Viri: Binance (vsi USDT pari) in CoinGecko (top&nbsp;250 po volumnu).
+      Lovi kovance, ki hkrati izpolnjujejo vse stiri pogoje rasti. Viri: Binance (vsi USDT pari) in CoinGecko (top&nbsp;250 po volumnu).
+      Graf kaze zadnjih 24h (crtkano = idealna parabola, % = ujemanje z njo). Klikni vrstico za vecji graf.
       <span id="scan-status"></span>
     </p>
 
-    <div id="fomo-empty" class="empty" hidden>Trenutno noben kovanec ne izpolnjuje vseh treh pogojev.</div>
+    <div id="fomo-empty" class="empty" hidden>Trenutno noben kovanec ne izpolnjuje vseh stirih pogojev.</div>
     <div class="table-wrap" id="fomo-wrap" hidden>
       <table class="tbl" id="fomo-table">
         <thead><tr>
-          <th class="l">Coin</th><th>Cena</th><th>1h</th><th>12h</th><th>24h</th><th>24h volumen</th><th class="l">Vir</th>
+          <th class="l">Coin</th><th>Cena</th><th>1h</th><th>4h</th><th>12h</th><th>24h</th><th class="l" title="24h potek cene; % = ujemanje z idealno parabolo">Graf 24h</th><th>24h volumen</th><th class="l">Vir</th>
         </tr></thead>
         <tbody></tbody>
       </table>
     </div>
 
-    <h3>Na radarju <span class="muted small">(izpolnjena 2 od 3 pogojev)</span></h3>
+    <h3>Na radarju <span class="muted small">(izpolnjeni 3 od 4 pogojev)</span></h3>
     <div id="radar-empty" class="empty" hidden>Ni kovancev blizu pogojev.</div>
     <div class="table-wrap" id="radar-wrap" hidden>
       <table class="tbl" id="radar-table">
         <thead><tr>
-          <th class="l">Coin</th><th>Cena</th><th>1h</th><th>12h</th><th>24h</th><th>24h volumen</th><th class="l">Vir</th>
+          <th class="l">Coin</th><th>Cena</th><th>1h</th><th>4h</th><th>12h</th><th>24h</th><th class="l" title="24h potek cene; % = ujemanje z idealno parabolo">Graf 24h</th><th>24h volumen</th><th class="l">Vir</th>
         </tr></thead>
         <tbody></tbody>
       </table>
@@ -90,16 +91,17 @@
   <form method="dialog" id="settings-form">
     <h2>Nastavitve FOMO</h2>
     <p class="muted small">Shranjeno samo v tem brskalniku.</p>
-    <div class="grid3">
+    <div class="grid4">
       <label>Rast 24h &ge; %<input type="number" step="0.1" name="h24" required></label>
       <label>Rast 12h &ge; %<input type="number" step="0.1" name="h12" required></label>
+      <label>Rast 4h &ge; %<input type="number" step="0.1" name="h4" required></label>
       <label>Rast 1h &ge; %<input type="number" step="0.1" name="h1" required></label>
     </div>
     <label>Min. 24h volumen na Binance (USD)<input type="number" step="1000" min="0" name="minVol"></label>
     <label>CoinGecko Demo API kljuc (opcijsko, manj omejitev)<input type="text" name="cgKey" autocomplete="off" placeholder="CG-..."></label>
     <label class="toggle"><input type="checkbox" name="notify"> Obvestilo brskalnika ob novem FOMO kovancu</label>
     <div class="dialog-actions">
-      <button type="button" class="btn ghost" id="btn-reset">Privzeto (12 / 9 / 7)</button>
+      <button type="button" class="btn ghost" id="btn-reset">Privzeto (12 / 9 / 8 / 7)</button>
       <span class="spacer"></span>
       <button value="cancel" class="btn ghost" formnovalidate>Preklici</button>
       <button value="save" class="btn">Shrani</button>

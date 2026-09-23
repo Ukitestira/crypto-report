@@ -138,14 +138,20 @@ Lovi kovance, ki **hkrati** izpolnjujejo vse tri pogoje rasti:
 |------|---------------|
 | zadnjih 24h | ≥ 12 % |
 | zadnjih 12h | ≥ 9 % |
+| zadnje 4h   | ≥ 8 % |
 | zadnja 1h   | ≥ 7 % |
 
-- **Viri:** Binance (vsi USDT pari, drsna okna 1h/12h/24h) in CoinGecko (top 250 po volumnu – ujame
-  tudi kovance, ki jih ni na Binance; 12h se izračuna iz 24h grafa).
-- **Na radarju:** kovanci, ki izpolnjujejo 2 od 3 pogojev (oznaka „12h ?“ = 12h podatek ni bil pridobljen).
+- **Viri:** Binance (vsi USDT pari, drsna okna 1h/4h/12h/24h) in CoinGecko (top 250 po volumnu – ujame
+  tudi kovance, ki jih ni na Binance; 12h in 4h se izračunata iz 24h grafa).
+- **Na radarju:** kovanci, ki izpolnjujejo 3 od 4 pogojev (oznaka „12h/4h ?“ = ta podatek ni bil pridobljen).
+- **Graf 24h** pri vsakem kovancu: oranžna črta je cena, črtkana je *idealna parabola* (ravno na
+  začetku, nato vse bolj strma rast do današnje cene). Odstotek pove, kako dobro se potek cene ujema
+  s parabolo – ≥ 80 % je obarvano oranžno. Klik na vrstico odpre večji graf z oznakami −24h/−12h/−4h/−1h
+  (polna pika = pogoj izpolnjen) in podatki ob premiku miške.
 - Coini iz tvojega portfelja dobijo oznako **v portfelju**, v tabeli portfelja pa **FOMO**.
 - Pragove, min. volumen, CoinGecko Demo ključ in obvestila brskalnika nastaviš v **Nastavitve**
   (shranjeno samo v tvojem brskalniku). Stran se samodejno osveži vsakih 5 min.
+  Če si pragove že kdaj spremenil, klikni v Nastavitvah „Privzeto“, da dobiš tudi prag za 4h.
 
 Vse teče v brskalniku, zato so podatki vedno sveži – strežnik ni potreben.
 
