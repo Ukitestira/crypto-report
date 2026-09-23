@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="sl">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Crypto FOMO pregled</title>
+  <meta name="description" content="Pregled portfelja kot v jutranjem crypto porocilu in FOMO indikator za kovance z mocno rastjo.">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ccircle cx='16' cy='16' r='15' fill='%23e8590c'/%3E%3Cpath d='M9 20l5-6 4 3 5-7' stroke='white' stroke-width='3' fill='none' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div class="wrap">
+  <header class="top">
+    <div>
+      <h1>Crypto FOMO pregled</h1>
+      <p class="muted small" id="updated">Nalagam &hellip;</p>
+    </div>
+    <div class="actions">
+      <label class="toggle small"><input type="checkbox" id="auto"> Samoosvezi (5 min)</label>
+      <button type="button" id="btn-settings" class="btn ghost">Nastavitve</button>
+      <button type="button" id="btn-refresh" class="btn">Osvezi</button>
+    </div>
+  </header>
+
+  <!-- ===================== FOMO ===================== -->
+  <section class="card fomo-card">
+    <div class="card-head">
+      <h2>&#128293; FOMO indikator</h2>
+      <div class="chips" id="th-chips"></div>
+    </div>
+    <p class="muted small">
+      Lovi kovance, ki hkrati izpolnjujejo vse tri pogoje rasti. Viri: Binance (vsi USDT pari) in CoinGecko (top&nbsp;250 po volumnu).
+      <span id="scan-status"></span>
+    </p>
+
+    <div id="fomo-empty" class="empty" hidden>Trenutno noben kovanec ne izpolnjuje vseh treh pogojev.</div>
+    <div class="table-wrap" id="fomo-wrap" hidden>
+      <table class="tbl" id="fomo-table">
+        <thead><tr>
+          <th class="l">Coin</th><th>Cena</th><th>1h</th><th>12h</th><th>24h</th><th>24h volumen</th><th class="l">Vir</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <h3>Na radarju <span class="muted small">(izpolnjena 2 od 3 pogojev)</span></h3>
+    <div id="radar-empty" class="empty" hidden>Ni kovancev blizu pogojev.</div>
+    <div class="table-wrap" id="radar-wrap" hidden>
+      <table class="tbl" id="radar-table">
+        <thead><tr>
+          <th class="l">Coin</th><th>Cena</th><th>1h</th><th>12h</th><th>24h</th><th>24h volumen</th><th class="l">Vir</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <!-- ===================== PORTFELJ ===================== -->
+  <section class="card">
+    <div class="kpi-label">Vrednost portfelja</div>
+    <div class="kpi" id="total">&ndash;</div>
+    <div class="kpi-sub" id="total-ch">&nbsp;</div>
+    <p class="muted" id="market"></p>
+    <p class="muted" id="fng"></p>
+    <div id="mover"></div>
+  </section>
+
+  <div id="alerts"></div>
+
+  <section class="card flush">
+    <div class="table-wrap">
+      <table class="tbl" id="port-table">
+        <thead><tr>
+          <th class="l">Coin</th><th>Cena</th><th>1h</th><th>24h</th><th>7d</th><th>Kolicina</th><th>Vrednost</th><th>Cilj</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <div class="note" id="note"></div>
+  <div id="missing"></div>
+  <div id="errors"></div>
+
+  <p class="foot">Informativno, ne financni nasvet. Podatki: CoinGecko, Binance, Alternative.me. Portfelj iz <code>config.json</code>.</p>
+</div>
+
+<!-- ===================== NASTAVITVE ===================== -->
+<dialog id="settings">
+  <form method="dialog" id="settings-form">
+    <h2>Nastavitve FOMO</h2>
+    <p class="muted small">Shranjeno samo v tem brskalniku.</p>
+    <div class="grid3">
+      <label>Rast 24h &ge; %<input type="number" step="0.1" name="h24" required></label>
+      <label>Rast 12h &ge; %<input type="number" step="0.1" name="h12" required></label>
+      <label>Rast 1h &ge; %<input type="number" step="0.1" name="h1" required></label>
+    </div>
+    <label>Min. 24h volumen na Binance (USD)<input type="number" step="1000" min="0" name="minVol"></label>
+    <label>CoinGecko Demo API kljuc (opcijsko, manj omejitev)<input type="text" name="cgKey" autocomplete="off" placeholder="CG-..."></label>
+    <label class="toggle"><input type="checkbox" name="notify"> Obvestilo brskalnika ob novem FOMO kovancu</label>
+    <div class="dialog-actions">
+      <button type="button" class="btn ghost" id="btn-reset">Privzeto (12 / 9 / 7)</button>
+      <span class="spacer"></span>
+      <button value="cancel" class="btn ghost" formnovalidate>Preklici</button>
+      <button value="save" class="btn">Shrani</button>
+    </div>
+  </form>
+</dialog>
+
+<script src="fomo.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

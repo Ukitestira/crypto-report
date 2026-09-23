@@ -123,3 +123,45 @@ Za popolno pokritost in atribucijo (kateri žep je čigav) služijo plačljivi s
 V `config.json` lahko dodaš `"onchain_threshold_usd": 250000` (privzeto). Premiki nad tem
 zneskom se posebej izpišejo pod tabelo.
 
+
+---
+
+## Spletna stran s FOMO indikatorjem
+
+Mapa `site/` vsebuje spletno stran s pregledom portfelja (kot v emailu: vrednost, sprememba 24h,
+trg, Fear & Greed, največji premik, target alerti, tabela coinov) in **FOMO indikatorjem**.
+
+### FOMO indikator
+Lovi kovance, ki **hkrati** izpolnjujejo vse tri pogoje rasti:
+
+| Okno | Privzeti prag |
+|------|---------------|
+| zadnjih 24h | ≥ 12 % |
+| zadnjih 12h | ≥ 9 % |
+| zadnja 1h   | ≥ 7 % |
+
+- **Viri:** Binance (vsi USDT pari, drsna okna 1h/12h/24h) in CoinGecko (top 250 po volumnu – ujame
+  tudi kovance, ki jih ni na Binance; 12h se izračuna iz 24h grafa).
+- **Na radarju:** kovanci, ki izpolnjujejo 2 od 3 pogojev (oznaka „12h ?“ = 12h podatek ni bil pridobljen).
+- Coini iz tvojega portfelja dobijo oznako **v portfelju**, v tabeli portfelja pa **FOMO**.
+- Pragove, min. volumen, CoinGecko Demo ključ in obvestila brskalnika nastaviš v **Nastavitve**
+  (shranjeno samo v tvojem brskalniku). Stran se samodejno osveži vsakih 5 min.
+
+Vse teče v brskalniku, zato so podatki vedno sveži – strežnik ni potreben.
+
+### Objava (GitHub Pages, enkratno)
+1. **Settings → Pages → Build and deployment → Source: GitHub Actions**.
+2. **Actions → "Spletna stran (GitHub Pages)" → Run workflow** (nato se sama objavi ob vsaki
+   spremembi `site/` ali `config.json`).
+3. Stran je na `https://<uporabnik>.github.io/crypto-report/`.
+
+> Stran objavi tudi `config.json` (tvoje količine). Ker je repozitorij javen, je ta datoteka
+> že zdaj javno vidna – stran tega ne spremeni. Če repo kdaj narediš zasebnega, upoštevaj,
+> da je Pages stran še vedno javna.
+
+### Lokalni zagon
+```bash
+python3 -m http.server 8000     # v korenu repozitorija
+# odpri http://localhost:8000/site/
+node --test site/fomo.test.js  # testi FOMO logike
+```
