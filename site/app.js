@@ -365,7 +365,7 @@
       total += value;
       prev += ch24 !== null ? value / (1 + ch24 / 100) : value;
       rows.push({
-        symbol: h.symbol, id: h.id, amount: h.amount, price: price, value: value,
+        symbol: h.symbol, name: m.name || h.note || "", id: h.id, amount: h.amount, price: price, value: value,
         h1: Fomo.num(m.price_change_percentage_1h_in_currency), h24: ch24, h12: null, h4: null,
         d7: Fomo.num(m.price_change_percentage_7d_in_currency),
         target: h.target_price || null,
@@ -670,7 +670,8 @@
       if (h === 3) badge = "<span class='badge fomo'>FOMO</span>";
       else if (r.h24 !== null && r.h1 !== null && r.h24 >= th.h24 && r.h1 >= th.h1) badge = "<span class='badge'>radar</span>";
       var tgt = r.pctToTarget === null ? null : -r.pctToTarget;
-      return "<tr><td class='l sym'>" + esc(r.symbol) + badge + "</td>" +
+      var name = r.name && r.name.toUpperCase() !== r.symbol ? " <span class='coin-name'>" + esc(r.name) + "</span>" : "";
+      return "<tr><td class='l sym'>" + esc(r.symbol) + name + badge + "</td>" +
         "<td>" + fmtMoney(r.price) + "</td>" +
         "<td class='" + pctCls(r.h1) + "'>" + fmtPct(r.h1) + "</td>" +
         "<td class='" + pctCls(r.h24) + "'>" + fmtPct(r.h24) + "</td>" +
