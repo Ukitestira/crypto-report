@@ -178,17 +178,33 @@ Pragovi so v `site/sentiment.js`. Ocena je informativna in ni napoved.
 
 ### Objava (GitHub Pages, enkratno)
 1. **Settings → Pages → Build and deployment → Source: GitHub Actions**.
-2. **Actions → "Spletna stran (GitHub Pages)" → Run workflow** (nato se sama objavi ob vsaki
-   spremembi `site/` ali `config.json`).
-3. Stran je na `https://<uporabnik>.github.io/crypto-report/`.
+2. **Settings → Secrets and variables → Actions → New repository secret**:
 
-> Stran objavi tudi `config.json` (tvoje količine). Ker je repozitorij javen, je ta datoteka
-> že zdaj javno vidna – stran tega ne spremeni. Če repo kdaj narediš zasebnega, upoštevaj,
-> da je Pages stran še vedno javna.
+   | Ime | Vrednost |
+   |-----|----------|
+   | `SITE_PASSWORD` | geslo za vstop na stran (vsaj 8 znakov) – **obvezno** |
+   | `SITE_PATH` | skrito ime podmape, npr. `p-7Kx2mQ9vT4` (črke, številke, `-`, `_`; 6–64 znakov) – opcijsko |
+
+3. **Actions → "Spletna stran (GitHub Pages)" → Run workflow**.
+4. Stran je na `https://<uporabnik>.github.io/crypto-report/<SITE_PATH>/`
+   (brez `SITE_PATH` na `https://<uporabnik>.github.io/crypto-report/`).
+
+### Prijava in kamuflaža
+- Portfelj se objavi samo **šifriran** z geslom (`config.enc.json`, AES-GCM, ključ iz gesla prek
+  PBKDF2-SHA256). Brez gesla se ga s strani ne da prebrati. Tržni podatki niso skrivnost.
+- Ob vstopu stran zahteva geslo. „Zapomni si me“ shrani izpeljani ključ (ne gesla) v brskalnik;
+  gumb **Odjava** ga izbriše.
+- Z `SITE_PATH` je stran v skriti podmapi, na glavnem naslovu pa je nevtralna stran „404“.
+  Naslov zavihka je „Pregled“, iskalnikom je indeksiranje prepovedano.
+- Ko spremeniš geslo (secret), znova poženi workflow – staro geslo takoj preneha delovati.
+
+> **Pomembno:** dokler je repozitorij javen, je `config.json` (tvoje količine) viden vsakomur na
+> github.com, tudi v zgodovini sprememb. Geslo ščiti samo objavljeno stran. Za popolno zasebnost
+> naredi repozitorij zasebnega (GitHub Pages za zasebne repozitorije zahteva GitHub Pro).
 
 ### Lokalni zagon
 ```bash
 python3 -m http.server 8000     # v korenu repozitorija
-# odpri http://localhost:8000/site/
-node --test site/fomo.test.js site/sentiment.test.js  # testi
+# odpri http://localhost:8000/site/  (lokalno brez prijave – bere navaden config.json)
+node --test site/fomo.test.js site/sentiment.test.js site/vault.test.js  # testi
 ```
