@@ -126,8 +126,10 @@
   }
 
   // ------------------------------------------------------------------ podatki
+  var CONFIG = null; // odsifriran portfelj (po prijavi)
   function loadConfig() {
-    // Na GitHub Pages je config.json poleg strani; lokalno (repo koren) je en nivo vise.
+    if (CONFIG) return Promise.resolve(CONFIG);
+    // Lokalni razvoj brez sifrirane datoteke: navaden config.json v korenu repozitorija.
     return getJson("config.json").catch(function () { return getJson("../config.json"); });
   }
 
@@ -436,7 +438,7 @@
     $("radar-empty").hidden = rad.length > 0;
     $("radar-wrap").hidden = rad.length === 0;
     $("radar-table").tBodies[0].innerHTML = rad.map(function (r) { return fomoRowHtml(r, ownSymbols); }).join("");
-    document.title = (f.length ? "(" + f.length + ") " : "") + "Crypto FOMO pregled";
+    document.title = (f.length ? "(" + f.length + ") " : "") + "Pregled";
 
     shownRows = {};
     f.concat(rad).forEach(function (r) { shownRows[rowKey(r)] = r; });
@@ -830,6 +832,75 @@
   $("auto").checked = !!settings.auto;
   $("auto").addEventListener("change", function (e) { setAuto(e.target.checked); });
 
-  setAuto(!!settings.auto);
-  refresh();
+  // ------------------------------------------------------------------ prijava
+  // Na objavljeni strani je portfelj v config.enc.json (sifriran z geslom). Brez pravega gesla
+  // se ga ne da prebrati, zato stran pokazemo sele po uspesnem odsifriranju.
+  var KEY_STORE = "vault-key-v1";
+  var started = false;
+
+  function start() {
+    if (started) return;
+    started = true;
+    $("login").hidden = true;
+    $("app").hidden = false;
+    setAuto(!!settings.auto);
+    refresh();
+  }
+
+  function storedKey() {
+    try { return localStorage.getItem(KEY_STORE) || sessionStorage.getItem(KEY_STORE); } catch (e) { return null; }
+  }
+  function forgetKey() {
+    try { localStorage.removeItem(KEY_STORE); sessionStorage.removeItem(KEY_STORE); } catch (e) { /* ignoriraj */ }
+  }
+  function rememberKey(key, persistent) {
+    Vault.exportKey(key).then(function (str) {
+      try { (persistent ? localStorage : sessionStorage).setItem(KEY_STORE, str); } catch (e) { /* ignoriraj */ }
+    });
+  }
+
+  function useConfigText(text) {
+    CONFIG = JSON.parse(text);
+    start();
+  }
+
+  function showLogin(blob) {
+    $("login").hidden = false;
+    $("login-pass").focus();
+    $("login-form").addEventListener("submit", function (e) {
+      e.preventDefault();
+      var btn = $("login-btn");
+      btn.disabled = true;
+      $("login-err").hidden = true;
+      Vault.decryptWithPassword(blob, $("login-pass").value).then(function (res) {
+        rememberKey(res.key, $("login-remember").checked);
+        $("login-pass").value = "";
+        useConfigText(res.text);
+      }).catch(function () {
+        $("login-err").hidden = false;
+        $("login-pass").select();
+      }).then(function () { btn.disabled = false; });
+    });
+  }
+
+  $("btn-logout").addEventListener("click", function () {
+    forgetKey();
+    location.reload();
+  });
+
+  fetch("config.enc.json", { cache: "no-store" }).then(function (r) {
+    if (!r.ok) throw new Error("brez sifriranega portfelja");
+    return r.json();
+  }).then(function (blob) {
+    $("btn-logout").hidden = false;
+    var saved = storedKey();
+    if (!saved) return showLogin(blob);
+    return Vault.importKey(saved)
+      .then(function (key) { return Vault.decryptWithKey(blob, key); })
+      .then(useConfigText)
+      .catch(function () { forgetKey(); showLogin(blob); });
+  }, function () {
+    // Lokalni razvoj (ni config.enc.json): brez prijave.
+    start();
+  });
 })();

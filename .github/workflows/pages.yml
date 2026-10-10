@@ -31,14 +31,30 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Testi FOMO logike
-        run: node --test site/fomo.test.js site/sentiment.test.js
+      - name: Testi
+        run: node --test site/fomo.test.js site/sentiment.test.js site/vault.test.js
 
+      # Portfelj se objavi samo sifriran z geslom (secret SITE_PASSWORD).
+      # Ce je nastavljen secret SITE_PATH, je stran v skriti podmapi, na glavnem
+      # naslovu pa je nevtralna stran 404.
       - name: Pripravi stran
+        env:
+          SITE_PASSWORD: ${{ secrets.SITE_PASSWORD }}
+          SITE_PATH: ${{ secrets.SITE_PATH }}
         run: |
+          if [ -n "$SITE_PATH" ] && ! printf '%s' "$SITE_PATH" | grep -Eq '^[A-Za-z0-9_-]{6,64}$'; then
+            echo "SITE_PATH sme vsebovati samo crke, stevilke, - in _ (6-64 znakov)."; exit 1
+          fi
           mkdir -p _site
-          cp site/index.html site/style.css site/app.js site/fomo.js site/sentiment.js _site/
-          cp config.json _site/config.json
+          OUT="_site${SITE_PATH:+/$SITE_PATH}"
+          mkdir -p "$OUT"
+          cp site/index.html site/style.css site/app.js site/fomo.js site/sentiment.js site/vault.js "$OUT/"
+          node site/encrypt-config.js config.json "$OUT/config.enc.json"
+          if [ -n "$SITE_PATH" ]; then
+            cp site/decoy.html _site/index.html
+          fi
+          cp site/decoy.html _site/404.html
+          printf 'User-agent: *\nDisallow: /\n' > _site/robots.txt
 
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
