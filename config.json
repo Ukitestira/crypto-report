@@ -7,7 +7,7 @@
   "social_watchlist": ["BTC", "ETH", "SOL", "ADA", "AVAX", "KARRAT", "BLACK", "PUMP"],
   "_comment": "Za dodajanje coina: prilepi novo vrstico v 'holdings'. 'id' je CoinGecko API ID (najdes ga na coin strani, labela 'API ID'). Ce 'id' nastavis na null, ga skripta poisce sama in ti v emailu javi, katerega je izbrala. 'avg_buy_price' je tvoja povprecna nakupna cena (za izracun % od nakupa) - pusti null, ce ne zelis tega izracuna. 'target_price' je ciljna cena za alert - pusti null, ce ne zelis alerta za ta coin. 'target_alert_threshold_pct' zgoraj dolo­ca, kako blizu cilju (v %) sprozi alert (privzeto 5%).",
   "holdings": [
-    {"symbol": "USDC", "amount": 32917.47, "id": "usd-coin", "avg_buy_price": 0.99, "target_price": 0.99},
+    {"symbol": "USDC", "amount": 32917.47, "id": "usd-coin", "avg_buy_price": 0.99, "target_price": null},
     {"symbol": "BTC", "amount": 0.1698, "id": "bitcoin", "avg_buy_price": 30000, "target_price": 195000},
     {"symbol": "NEAR", "amount": 1805.19, "id": "near", "avg_buy_price": null, "target_price": null},
     {"symbol": "ETH", "amount": 3.87, "id": "ethereum", "avg_buy_price": null, "target_price": null},
