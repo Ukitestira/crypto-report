@@ -32,7 +32,7 @@ jobs:
         uses: actions/checkout@v4
 
       - name: Testi
-        run: node --test site/fomo.test.js site/sentiment.test.js site/vault.test.js
+        run: node --test site/fomo.test.js site/sentiment.test.js site/vault.test.js site/swing.test.js
 
       # Portfelj se objavi samo sifriran z geslom (secret SITE_PASSWORD).
       # Ce je nastavljen secret SITE_PATH, je stran v skriti podmapi, na glavnem
@@ -48,11 +48,11 @@ jobs:
           mkdir -p _site
           OUT="_site${SITE_PATH:+/$SITE_PATH}"
           mkdir -p "$OUT"
-          cp site/index.html site/style.css site/app.js site/fomo.js site/sentiment.js site/vault.js "$OUT/"
+          cp site/index.html site/style.css site/app.js site/fomo.js site/sentiment.js site/vault.js site/swing.js "$OUT/"
           node site/encrypt-config.js config.json "$OUT/config.enc.json"
           # Vsaka objava dobi svojo razlicico skript/stilov, da brskalnik ne uporabi stare iz predpomnilnika.
           V="${GITHUB_SHA::12}"
-          sed -i -E "s#(src|href)=\"(style\.css|vault\.js|fomo\.js|sentiment\.js|app\.js)\"#\1=\"\2?v=$V\"#g" "$OUT/index.html"
+          sed -i -E "s#(src|href)=\"(style\.css|vault\.js|fomo\.js|sentiment\.js|swing\.js|app\.js)\"#\1=\"\2?v=$V\"#g" "$OUT/index.html"
           grep -c "?v=$V" "$OUT/index.html"
           if [ -n "$SITE_PATH" ]; then
             cp site/decoy.html _site/index.html

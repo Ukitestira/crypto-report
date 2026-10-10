@@ -155,6 +155,21 @@ Lovi kovance, ki **hkrati** izpolnjujejo vse tri pogoje rasti:
 
 Vse teče v brskalniku, zato so podatki vedno sveži – strežnik ni potreben.
 
+### Swing trade priložnosti (long)
+Razdelek med FOMO indikatorjem in sentimentom pregleda top kovance po volumnu na **Binance** (50) in
+**Bybit** (40) ter vse tvoje kovance, ki so tam v paru z USDT. Na dnevnem in 4-urnem grafu išče:
+
+| Setup | Pogoj |
+|---|---|
+| Pullback v trendu | cena nad 200-dnevnim povprečjem, EMA50 nad SMA200, popravek do EMA20/EMA50, dnevni RSI 35–58 in raste |
+| Preboj z volumnom | zadnja dnevna sveča zaprta nad 20-dnevnim vrhom ob ≥ 1,5× povprečnem volumnu, cena največ 8 % nad ravnjo |
+| Odboj iz preprodanosti | 4h RSI je bil v zadnjih 6 svečah pod 30 in se obrača navzgor, zadnja sveča zelena |
+| Križanje EMA 20/50 (4h) | EMA20 je v zadnjih 3 svečah presekala EMA50 navzgor, cena nad obema |
+
+Za vsak setup so izračunani vstop (trenutna cena), stop-loss (pod zadnjim dnom oz. prebito ravnjo),
+cilj in razmerje **R:R**. Če je sentiment trga povišan ali visok, razdelek na to opozori. Pravila so v
+`site/swing.js`. Informativno, ne nasvet za trgovanje.
+
 ### Sentiment trga in tveganje popravka
 Razdelek **Sentiment trga** zbere običajne kazalnike in vsakemu da oceno tveganja za popravek 0–100
 (0 = nizko, 100 = zelo visoko). Skupna ocena je povprečje, ločeno na **kratkoročni** del (dnevi–tedni)
@@ -206,5 +221,5 @@ Pragovi so v `site/sentiment.js`. Ocena je informativna in ni napoved.
 ```bash
 python3 -m http.server 8000     # v korenu repozitorija
 # odpri http://localhost:8000/site/  (lokalno brez prijave – bere navaden config.json)
-node --test site/fomo.test.js site/sentiment.test.js site/vault.test.js  # testi
+node --test site/fomo.test.js site/sentiment.test.js site/vault.test.js site/swing.test.js  # testi
 ```

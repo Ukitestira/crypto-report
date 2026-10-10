@@ -235,7 +235,156 @@
       "</div>";
   }
 
+  // ------------------------------------------------------------------ swing trade setupi
+  var BYBIT_BASE = "https://api.bybit.com/v5/market";
+  var memo = {};
+  // Preprost predpomnilnik za klice, ki se med osvezitvami ne spreminjajo hitro.
+  function cached(key, ttlMs, fn) {
+    var hit = memo[key];
+    if (hit && Date.now() - hit.t < ttlMs) return hit.p;
+    var p = fn();
+    memo[key] = { t: Date.now(), p: p };
+    p.catch(function () { delete memo[key]; });
+    return p;
+  }
+  // Najvec n hkratnih zahtevkov.
+  function limiter(n) {
+    var active = 0, queue = [];
+    function next() {
+      if (active >= n || !queue.length) return;
+      active++;
+      var job = queue.shift();
+      job.fn().then(job.ok, job.err).then(function () { active--; next(); });
+    }
+    return function (fn) {
+      return new Promise(function (ok, err) { queue.push({ fn: fn, ok: ok, err: err }); next(); });
+    };
+  }
+  var swingLimit = limiter(6);
+
+  function binance24h() {
+    return cached("bn24h", 60e3, function () { return binanceGet("/api/v3/ticker/24hr"); });
+  }
+  function bybitTickers() {
+    return cached("bybit-t", 60e3, function () {
+      return getJson(BYBIT_BASE + "/tickers?category=spot").then(function (r) { return r.result.list; });
+    });
+  }
+  function swingCandles(ex, pair, interval) {
+    var ttl = interval === "1d" ? 15 * 60e3 : 4 * 60e3;
+    return cached(ex + pair + interval, ttl, function () {
+      return swingLimit(function () {
+        if (ex === "Binance") {
+          return binanceGet("/api/v3/klines", { symbol: pair, interval: interval, limit: interval === "1d" ? 210 : 120 })
+            .then(Swing.fromBinance);
+        }
+        var iv = interval === "1d" ? "D" : "240";
+        return getJson(BYBIT_BASE + "/kline?category=spot&symbol=" + pair + "&interval=" + iv + "&limit=" + (interval === "1d" ? 210 : 120))
+          .then(function (r) { return Swing.fromBybit(r.result.list); });
+      });
+    });
+  }
+
+  // Univerzum: top 50 po volumnu na Binance + top 40 na Bybit + kovanci iz portfelja, ki so tam v paru z USDT.
+  function fetchSwing(ownSymbols) {
+    var failed = [];
+    var bnP = binance24h().catch(function () { failed.push("Binance"); return []; });
+    var byP = bybitTickers().catch(function () { failed.push("Bybit"); return []; });
+    return Promise.all([bnP, byP]).then(function (r) {
+      var bnRows = r[0].filter(function (t) { return Number(t.count) > 0; })
+        .map(function (t) { return { symbol: t.symbol, volume: t.quoteVolume }; });
+      var byRows = r[1].map(function (t) { return { symbol: t.symbol, volume: t.turnover24h }; });
+      var bnAll = new Set(Swing.universe(bnRows, { limit: 5000 }).map(function (x) { return x.base; }));
+      var byAll = new Set(Swing.universe(byRows, { limit: 5000 }).map(function (x) { return x.base; }));
+      var picked = {};
+      function add(base, vol) {
+        if (!picked[base]) picked[base] = { base: base, volume: 0 };
+        picked[base].volume = Math.max(picked[base].volume, vol || 0);
+      }
+      Swing.universe(bnRows, { minVolume: 5e6, limit: 50 }).forEach(function (x) { add(x.base, x.volume); });
+      Swing.universe(byRows, { minVolume: 2e6, limit: 40 }).forEach(function (x) { add(x.base, x.volume); });
+      ownSymbols.forEach(function (sym) { if (bnAll.has(sym) || byAll.has(sym)) add(sym, 0); });
+
+      var list = Object.keys(picked).map(function (base) {
+        var c = picked[base];
+        c.binance = bnAll.has(base); c.bybit = byAll.has(base);
+        c.src = c.binance ? "Binance" : "Bybit";
+        return c;
+      }).filter(function (c) { return c.binance || c.bybit; });
+
+      return Promise.all(list.map(function (c) {
+        var pair = c.base + "USDT";
+        return Promise.all([swingCandles(c.src, pair, "1d"), swingCandles(c.src, pair, "4h")])
+          .then(function (k) { c.a = Swing.analyze(k[0], k[1]); })
+          .catch(function () { c.a = null; });
+      })).then(function () {
+        var rows = list.filter(function (c) { return c.a && c.a.setups.length; });
+        rows.sort(function (a, b) {
+          return (b.a.setups.length - a.a.setups.length) || (b.a.setups[0].rr - a.a.setups[0].rr);
+        });
+        return { rows: rows, scanned: list.filter(function (c) { return c.a; }).length, failed: failed };
+      });
+    });
+  }
+
+  var swingState = { data: null, filter: "all", own: new Set() };
+  var lastSentiment = null;
+
+  function renderSwing() {
+    var d = swingState.data;
+    if (!d) return;
+    var types = Object.keys(Swing.LABELS);
+    var counts = {};
+    types.forEach(function (t) { counts[t] = d.rows.filter(function (r) { return r.a.setups.some(function (x) { return x.type === t; }); }).length; });
+    var f = swingState.filter;
+    $("swing-filter").innerHTML = ["all"].concat(types).map(function (t) {
+      var n = t === "all" ? d.rows.length : counts[t];
+      return "<button type='button' class='fchip" + (f === t ? " on" : "") + "' data-f='" + t + "'>" +
+        (t === "all" ? "Vsi" : Swing.LABELS[t]) + " <b>" + n + "</b></button>";
+    }).join("");
+
+    var rows = d.rows.filter(function (r) { return f === "all" || r.a.setups.some(function (x) { return x.type === f; }); }).slice(0, 30);
+    $("swing-status").textContent = "Pregledanih " + d.scanned + " kovancev (dnevni in 4h grafi)." +
+      (d.failed.length ? " Ni odgovora: " + d.failed.join(", ") + "." : "");
+    var risk = lastSentiment && lastSentiment.level && (lastSentiment.level.key === "elevated" || lastSentiment.level.key === "high");
+    $("swing-risk").hidden = !risk;
+    if (risk) $("swing-risk").textContent = "Sentiment trga kaze " + lastSentiment.level.label.toLowerCase() +
+      " tveganje popravka (" + Math.round(lastSentiment.score) + "/100) \u2013 manjse pozicije in dosledni stop-lossi.";
+
+    $("swing-empty").hidden = rows.length > 0;
+    $("swing-empty").textContent = d.scanned ? "Trenutno ni kovancev z izbranim setupom." : "Borzi nista odgovorili \u2013 poskusi znova cez minuto.";
+    $("swing-wrap").hidden = rows.length === 0;
+    $("swing-table").tBodies[0].innerHTML = rows.map(function (r) {
+      var best = f === "all" ? r.a.setups[0] : r.a.setups.filter(function (x) { return x.type === f; })[0];
+      var links = [];
+      if (r.binance) links.push("<a href='https://www.binance.com/en/trade/" + esc(r.base) + "_USDT' target='_blank' rel='noopener'>Binance</a>");
+      if (r.bybit) links.push("<a href='https://www.bybit.com/en/trade/spot/" + esc(r.base) + "/USDT' target='_blank' rel='noopener'>Bybit</a>");
+      var badges = r.a.setups.map(function (x) {
+        return "<span class='badge sw-" + x.type + (x === best ? " best" : "") + "'>" + esc(x.label) + "</span>";
+      }).join("");
+      var own = swingState.own.has(r.base) ? "<span class='badge own'>v portfelju</span>" : "";
+      return "<tr>" +
+        "<td class='l sym'>" + esc(r.base) + own + "<div class='sw-ex small'>" + links.join(" \u00b7 ") + "</div></td>" +
+        "<td class='l sw-setup'>" + badges + "<div class='muted small'>" + esc(best.note) + "</div></td>" +
+        "<td>" + fmtMoney(best.entry) + "</td>" +
+        "<td class='neg'>" + fmtMoney(best.stop) + "<div class='small'>\u2212" + best.riskPct.toFixed(1) + "%</div></td>" +
+        "<td class='pos'>" + fmtMoney(best.target) + "<div class='small'>+" + ((best.target / best.entry - 1) * 100).toFixed(1) + "%</div></td>" +
+        "<td class='" + (best.rr >= 2 ? "rr-good" : best.rr < 1.5 ? "muted" : "") + "'><b>" + best.rr.toFixed(1) + "</b></td>" +
+        "<td>" + (r.a.rsiD === null ? "\u2013" : r.a.rsiD.toFixed(0)) + " / " + (r.a.rsi4h === null ? "\u2013" : r.a.rsi4h.toFixed(0)) + "</td>" +
+        "<td class='l small'>" + esc(r.a.trend) + "</td></tr>";
+    }).join("");
+  }
+
+  $("swing-filter").addEventListener("click", function (e) {
+    var b = e.target.closest("button[data-f]");
+    if (!b) return;
+    swingState.filter = b.getAttribute("data-f");
+    renderSwing();
+  });
+
   function renderSentiment(res) {
+    lastSentiment = res;
+    renderSwing();
     if (!res || !res.items.length) {
       $("sent-phase").hidden = true;
       $("sent-body").innerHTML = "<div class='empty'>Podatki za sentiment niso dosegljivi \u2013 poskusi znova cez minuto.</div>";
@@ -297,7 +446,7 @@
 
   // Binance: vsi USDT pari -> top kandidati po 24h rasti -> 12h, 4h in 1h drsno okno.
   function scanBinance(th) {
-    return binanceGet("/api/v3/ticker/24hr").then(function (tickers) {
+    return binance24h().then(function (tickers) {
       var cands = Fomo.binanceCandidates(tickers, { minQuoteVolume: Number(settings.minVol) || 0, minCh24: 0, limit: 200 });
       var byPair = {};
       cands.forEach(function (c) { byPair[c.pair] = c; });
@@ -749,6 +898,13 @@
       .catch(soft("Sentiment"))
       .then(function (res) { renderSentiment(res); });
 
+    var swingP = cfgP.then(function (cfg) {
+      var own = new Set(((cfg && cfg.holdings) || []).map(function (h) { return String(h.symbol).toUpperCase(); }));
+      swingState.own = own;
+      return fetchSwing(own);
+    }).then(function (d) { swingState.data = d; renderSwing(); })
+      .catch(soft("Swing setupi"));
+
     var huntP = Promise.all([binP, globP]).then(function (res) {
       var bin = res[0] || [];
       var skip = new Set(bin.map(function (r) { return r.symbol; }));
@@ -757,7 +913,7 @@
       });
     });
 
-    return Promise.all([portP, globP, fngP, huntP, sentP]).then(function (res) {
+    return Promise.all([portP, globP, fngP, huntP, sentP, swingP]).then(function (res) {
       var p = res[0], glob = res[1], fng = res[2], hunt = res[3];
       var own = new Set(p ? p.rows.map(function (r) { return r.symbol; }) : []);
 
