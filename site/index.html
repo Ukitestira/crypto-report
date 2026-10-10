@@ -69,6 +69,29 @@
     </div>
   </section>
 
+  <!-- ===================== SWING ===================== -->
+  <section class="card" id="swing-card">
+    <div class="card-head">
+      <h2>&#128200; Swing trade prilo&#382;nosti (long)</h2>
+    </div>
+    <p class="muted small">
+      Setupi na Binance in Bybit (top kovanci po volumnu + tvoj portfelj): pullback v trendu, preboj z volumnom,
+      odboj iz preprodanosti in kri&#382;anje EMA 20/50. Stop-loss je pod zadnjim dnom, R:R = potencialni dobi&#269;ek / tveganje.
+      Informativno, ne nasvet za trgovanje. <span id="swing-status"></span>
+    </p>
+    <div class="warn small" id="swing-risk" hidden></div>
+    <div class="fchips" id="swing-filter"></div>
+    <div id="swing-empty" class="empty">Nalagam &hellip;</div>
+    <div class="table-wrap" id="swing-wrap" hidden>
+      <table class="tbl" id="swing-table">
+        <thead><tr>
+          <th class="l">Coin</th><th class="l">Setup</th><th>Vstop</th><th>Stop-loss</th><th>Cilj</th><th>R:R</th><th>RSI d / 4h</th><th class="l">Trend</th>
+        </tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
   <!-- ===================== SENTIMENT ===================== -->
   <section class="card" id="sent-card">
     <div class="card-head">
@@ -109,7 +132,7 @@
   <div id="missing"></div>
   <div id="errors"></div>
 
-  <p class="foot">Informativno, ne financni nasvet. Podatki: CoinGecko, Binance, OKX, Alternative.me. Portfelj iz <code>config.json</code>.</p>
+  <p class="foot">Informativno, ne financni nasvet. Podatki: CoinGecko, Binance, Bybit, OKX, Alternative.me. Portfelj iz <code>config.json</code>.</p>
 </div>
 
 <!-- ===================== NASTAVITVE ===================== -->
@@ -138,6 +161,7 @@
 <script src="vault.js"></script>
 <script src="fomo.js"></script>
 <script src="sentiment.js"></script>
+<script src="swing.js"></script>
 <script src="app.js"></script>
 </body>
 </html>
