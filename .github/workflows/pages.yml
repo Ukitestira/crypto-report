@@ -50,6 +50,10 @@ jobs:
           mkdir -p "$OUT"
           cp site/index.html site/style.css site/app.js site/fomo.js site/sentiment.js site/vault.js "$OUT/"
           node site/encrypt-config.js config.json "$OUT/config.enc.json"
+          # Vsaka objava dobi svojo razlicico skript/stilov, da brskalnik ne uporabi stare iz predpomnilnika.
+          V="${GITHUB_SHA::12}"
+          sed -i -E "s#(src|href)=\"(style\.css|vault\.js|fomo\.js|sentiment\.js|app\.js)\"#\1=\"\2?v=$V\"#g" "$OUT/index.html"
+          grep -c "?v=$V" "$OUT/index.html"
           if [ -n "$SITE_PATH" ]; then
             cp site/decoy.html _site/index.html
           fi
