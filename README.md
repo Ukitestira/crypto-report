@@ -186,8 +186,8 @@ Pragovi so v `site/sentiment.js`. Ocena je informativna in ni napoved.
    | `SITE_PATH` | skrito ime podmape, npr. `p-7Kx2mQ9vT4` (črke, številke, `-`, `_`; 6–64 znakov) – opcijsko |
 
 3. **Actions → "Spletna stran (GitHub Pages)" → Run workflow**.
-4. Stran je na `https://<uporabnik>.github.io/crypto-report/<SITE_PATH>/`
-   (brez `SITE_PATH` na `https://<uporabnik>.github.io/crypto-report/`).
+4. Stran je na `https://<uporabnik>.github.io/c-report/<SITE_PATH>/`
+   (brez `SITE_PATH` na `https://<uporabnik>.github.io/c-report/`).
 
 ### Prijava in kamuflaža
 - Portfelj se objavi samo **šifriran** z geslom (`config.enc.json`, AES-GCM, ključ iz gesla prek
